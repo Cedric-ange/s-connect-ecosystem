@@ -3,6 +3,9 @@
 /node_modules
 /.vscode
 
+# Dossier backend-sfa dupliqué par erreur
+/backend-sfa
+
 # Logs
 logs
 *.log
@@ -42,4 +45,7 @@ lerna-debug.log*
 .env.*.local
 
 # Prisma
-prisma/migrations/**
+# Note: les migrations doivent être versionnées pour le déploiement Supabase
+# dev.db = SQLite local
+prisma/dev.db
+prisma/dev.db-*
