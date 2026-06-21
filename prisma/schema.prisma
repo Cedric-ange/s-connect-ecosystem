@@ -8,13 +8,43 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ==========================================
+// 🏢 L'ANCRE MULTI-TENANT
+// ==========================================
+
+model Tenant {
+  id          String   @id @default(uuid())
+  companyName String   @map("company_name") // ex: "Fan Milk CI", "Solibra", "Dangote"
+  industry    String   // ex: "FMCG_FROZEN", "BEVERAGES", "CONSTRUCTION"
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations vers tout l'écosystème
+  users        User[]
+  territories  Territory[]
+  outlets      Outlet[]
+  categories   ProductCategory[]
+  skus         SKU[]
+  orders       Order[]
+  visits       Visit[]
+  dynamicForms DynamicForm[]
+
+  @@map("tenants")
+}
+
+// ==========================================
+// 👥 UTILISATEURS & COMMERCIAUX
+// ==========================================
+
 model User {
   id                  String           @id @default(uuid())
+  tenantId            String           @map("tenant_id") // Liaison Multi-Tenant
   email               String           @unique
   password            String
   firstName           String
   lastName            String
-  role                String           @default("REP")
+  role                String           @default("REP") // REP, MANAGER, ADMIN, KD...
   phone               String
   matricule           String           @unique
   photoUrl            String?
@@ -30,7 +60,10 @@ model User {
   lastLogin           DateTime?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
-  enrollments         Enrollment[]
+  
+  // Relations existantes
+  tenant              Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enrollments         Enrollments[]
   merchandisingChecks MerchCheck[]
   orders              Order[]
   validatedOutlets    Outlet[]         @relation("OutletValidator")
@@ -44,11 +77,13 @@ model User {
   vendorStockItems    VendorStock[]
   visits              Visit[]
 
+  @@index([tenantId])
   @@index([email])
   @@index([role])
   @@index([territoryId])
   @@index([assignedSectorId])
   @@index([managerId])
+  @@map("users")
 }
 
 model RefreshToken {
@@ -61,10 +96,16 @@ model RefreshToken {
 
   @@index([token])
   @@index([userId])
+  @@map("refresh_tokens")
 }
+
+// ==========================================
+// 🗺️ STRUCTURATION DES SECTEURS GÉOGRAPHIQUES
+// ==========================================
 
 model Territory {
   id                  String      @id @default(uuid())
+  tenantId            String      @map("tenant_id") // Liaison Multi-Tenant
   code                String      @unique
   name                String
   level               String      @default("SECTEUR")
@@ -90,20 +131,29 @@ model Territory {
   createdBy           String?
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
+  
+  tenant              Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   outlets             Outlet[]
   parent              Territory?  @relation("TerritoryHierarchy", fields: [parentId], references: [id])
   children            Territory[] @relation("TerritoryHierarchy")
 
+  @@index([tenantId])
   @@index([code])
   @@index([level])
   @@index([parentId])
+  @@map("territories")
 }
 
+// ==========================================
+// 🏪 CLIENTS & POINTS DE VENTE (Auto-Hiérarchie intégrée)
+// ==========================================
+
 model Outlet {
-  id                String    @id @default(uuid())
-  code              String    @unique
+  id                String       @id @default(uuid())
+  tenantId          String       @map("tenant_id") // Liaison Multi-Tenant
+  code              String       @unique
   name              String
-  channel           String
+  channel           String       // KD (Grossiste), GMS, RETAIL, AMBULANT...
   segment           String?
   address           String?
   lat               Float?
@@ -111,36 +161,58 @@ model Outlet {
   openHours         String?
   territoryId       String
   sectorId          String?
-  status            String    @default("PENDING")
+  status            String       @default("PENDING")
   proposedBy        String?
   validatedBy       String?
   validatedAt       DateTime?
   validationComment String?
   osmPlaceId        String?
   osmMetadata       String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  orders            Order[]
-  validator         User?     @relation("OutletValidator", fields: [validatedBy], references: [id])
-  proposer          User?     @relation("OutletProposer", fields: [proposedBy], references: [id])
-  territory         Territory @relation(fields: [territoryId], references: [id])
-  visits            Visit[]
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
+  // 🔄 Cascade de distribution : Liaison Grossiste ➔ Sous-comptes / Ambulants
+  parentId          String?      @map("parent_id")
+  parent            Outlet?      @relation("DistributionChain", fields: [parentId], references: [id])
+  subOutlets        Outlet[]     @relation("DistributionChain")
+  
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders            Order[]
+  validator         User?        @relation("OutletValidator", fields: [validatedBy], references: [id])
+  proposer          User?        @relation("OutletProposer", fields: [proposedBy], references: [id])
+  territory         Territory    @relation(fields: [territoryId], references: [id])
+  visits            Visit[]
+  submissions       Submission[]
+
+  @@index([tenantId])
   @@index([code])
   @@index([territoryId])
   @@index([sectorId])
   @@index([status])
   @@index([proposedBy])
+  @@index([parentId])
+  @@map("outlets")
 }
 
+// ==========================================
+// 📦 CATALOGUE PRODUIT STRUCTURÉ (Agnostique + Multi-Unités)
+// ==========================================
+
 model ProductCategory {
-  id            String               @id @default(uuid())
-  name          String               @unique
-  displayName   String?
-  active        Boolean              @default(true)
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  id          String               @id @default(uuid())
+  tenantId    String               @map("tenant_id")
+  name        String
+  displayName String?
+  active      Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   subcategories ProductSubCategory[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("product_categories")
 }
 
 model ProductSubCategory {
@@ -151,10 +223,11 @@ model ProductSubCategory {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   brands      ProductBrand[]
-  category    ProductCategory @relation(fields: [categoryId], references: [id])
+  category    ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([categoryId, name])
   @@index([categoryId])
+  @@map("product_sub_categories")
 }
 
 model ProductBrand {
@@ -164,32 +237,35 @@ model ProductBrand {
   subProductCategoryId String
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
-  subProductCategory   ProductSubCategory  @relation(fields: [subProductCategoryId], references: [id])
+  subProductCategory   ProductSubCategory  @relation(fields: [subProductCategoryId], references: [id], onDelete: Cascade)
   packFormats          ProductPackFormat[]
 
   @@unique([subProductCategoryId, name])
   @@index([subProductCategoryId])
+  @@map("product_brands")
 }
 
 model ProductPackFormat {
-  id          String       @id @default(uuid())
-  name        String
+  id        String       @id @default(uuid())
+  name      String
   displayName String?
-  brandId     String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  brand       ProductBrand @relation(fields: [brandId], references: [id])
-  packSizes   SKU[]
+  brandId   String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  brand     ProductBrand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  packSizes SKU[]
 
   @@unique([brandId, name])
   @@index([brandId])
+  @@map("product_pack_formats")
 }
 
 model SKU {
-  id               String            @id @default(uuid())
+  id               String             @id @default(uuid())
+  tenantId         String             @map("tenant_id") // Liaison Multi-Tenant
   name             String
   displayName      String?
-  ean              String            @unique
+  ean              String             @unique
   code             String?
   packFormatId     String
   description      String?
@@ -197,52 +273,79 @@ model SKU {
   fullDescription  String?
   photo            String?
   priceHt          Float
-  vatRate          Float             @default(19.6)
-  active           Boolean           @default(true)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  vatRate          Float              @default(19.6)
+  baseUnit         String             @default("UNIT") @map("base_unit") // ex: "SACHET", "BOUTEILLE", "SAC"
+  active           Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   merchCheckItems  MerchCheckItem[]
   orderLines       OrderLine[]
-  packFormat       ProductPackFormat @relation(fields: [packFormatId], references: [id])
+  packFormat       ProductPackFormat  @relation(fields: [packFormatId], references: [id], onDelete: Cascade)
   stockItems       VendorStock[]
+  packagings       ProductPackaging[] // Unités de conversion dynamiques (ex: Cartons, Casier)
 
+  @@index([tenantId])
   @@index([ean])
   @@index([code])
   @@index([packFormatId])
   @@index([active])
+  @@map("skus")
 }
 
+// 📏 Table pour éviter les erreurs d'unités de FieldPro (Mappage des cartons, palettes...)
+model ProductPackaging {
+  id               String   @id @default(uuid())
+  skuId            String   @map("sku_id")
+  name             String   // ex: "CARTON", "CASIER", "PACK"
+  conversionFactor Int      @map("conversion_factor") // ex: 100 (pour 100 sachets)
+  
+  sku              SKU      @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  
+  @@map("product_packagings")
+}
+
+// ==========================================
+// 💼 COMMANDES & FACTURATION
+// ==========================================
+
 model Order {
-  id             String         @id @default(uuid())
-  orderNumber    String         @unique
-  outletId       String
-  userId         String
-  visitId        String?
-  status         String         @default("PENDING")
-  totalHt        Float
-  totalTtc       Float
-  vatRate        Float          @default(19.6)
-  currency       String?        @default("XOF")
-  taxTotal       Float?         @default(0)
-  discountTotal  Float?         @default(0)
-  paymentMethod  String?
-  paymentStatus  String         @default("PENDING")
-  notes          String?
-  orderDate      DateTime       @default(now())
-  deliveryDate   DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  visit          Visit?         @relation(fields: [visitId], references: [id])
-  user           User           @relation(fields: [userId], references: [id])
-  outlet         Outlet         @relation(fields: [outletId], references: [id])
-  items          OrderLine[]
+  id            String         @id @default(uuid())
+  tenantId      String         @map("tenant_id")
+  orderNumber   String         @unique
+  outletId      String
+  userId        String
+  visitId       String?
+  status        String         @default("PENDING")
+  totalHt       Float
+  totalTtc      Float
+  vatRate       Float          @default(19.6)
+  currency      String?        @default("XOF")
+  taxTotal      Float?         @default(0)
+  discountTotal Float?         @default(0)
+  paymentMethod String?
+  paymentStatus String         @default("PENDING")
+  notes         String?
+  orderDate     DateTime       @default(now())
+  deliveryDate  DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  visit         Visit?         @relation(fields: [visitId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  outlet        Outlet         @relation(fields: [outletId], references: [id])
+  items         OrderLine[]
   stockMovements StockHistory[]
 
+  @@index([tenantId])
   @@index([orderNumber])
   @@index([outletId])
   @@index([userId])
   @@index([status])
   @@index([orderDate])
+  @@map("orders")
 }
 
 model OrderLine {
@@ -259,10 +362,16 @@ model OrderLine {
 
   @@index([orderId])
   @@index([skuId])
+  @@map("order_lines")
 }
+
+// ==========================================
+// 📋 VISITES & ACTIONS TERRAIN
+// ==========================================
 
 model Visit {
   id          String       @id @default(uuid())
+  tenantId    String       @map("tenant_id")
   outletId    String
   userId      String
   status      String       @default("PLANNED")
@@ -278,15 +387,19 @@ model Visit {
   plannedDate DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   merchChecks MerchCheck[]
   orders      Order[]
   user        User         @relation(fields: [userId], references: [id])
   outlet      Outlet       @relation(fields: [outletId], references: [id])
 
+  @@index([tenantId])
   @@index([outletId])
   @@index([userId])
   @@index([status])
   @@index([plannedDate])
+  @@map("visits")
 }
 
 model MerchCheck {
@@ -305,6 +418,7 @@ model MerchCheck {
 
   @@index([visitId])
   @@index([userId])
+  @@map("merch_checks")
 }
 
 model MerchCheckItem {
@@ -323,6 +437,7 @@ model MerchCheckItem {
   @@index([merchCheckId])
   @@index([skuId])
   @@index([merchandisingCheckId])
+  @@map("merch_check_items")
 }
 
 model MerchPhoto {
@@ -340,7 +455,12 @@ model MerchPhoto {
 
   @@index([merchCheckId])
   @@index([merchandisingCheckId])
+  @@map("merch_photos")
 }
+
+// ==========================================
+// 🚚 INVENTAIRES EMBARQUÉS & STOCKS CAMIONS
+// ==========================================
 
 model VendorStock {
   id             String         @id @default(uuid())
@@ -357,6 +477,7 @@ model VendorStock {
   @@unique([userId, skuId])
   @@index([userId])
   @@index([skuId])
+  @@map("vendor_stocks")
 }
 
 model StockHistory {
@@ -376,29 +497,98 @@ model StockHistory {
   @@index([movementType])
   @@index([createdAt])
   @@index([orderId])
+  @@map("stock_histories")
 }
 
-model Course {
+// ==========================================
+// 📝 LE FORMULAIRE NO-CODE SÉCURISÉ & TYPÉ
+// ==========================================
+
+enum FieldType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  GPS
+  PHOTO
+}
+
+enum FormPurpose {
+  SALES_ORDER
+  STOCK_AUDIT
+  ASSET_CHECK
+  GENERIC_SURVEY
+}
+
+model DynamicForm {
   id          String       @id @default(uuid())
+  tenantId    String       @map("tenant_id")
+  title       String
+  purpose     FormPurpose  @default(GENERIC_SURVEY)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fields      FormField[]
+  submissions Submission[]
+
+  @@index([tenantId])
+  @@map("dynamic_forms")
+}
+
+model FormField {
+  id          String      @id @default(uuid())
+  formId      String      @map("form_id")
+  label       String
+  type        FieldType
+  isRequired  Boolean     @default(false) @map("is_required")
+
+  form        DynamicForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@map("form_fields")
+}
+
+model Submission {
+  id          String      @id @default(uuid())
+  formId      String      @map("form_id")
+  outletId    String      @map("outlet_id")
+  payload     Json        // Stockage JSONB flexible validé
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  form        DynamicForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  outlet      Outlet      @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@index([outletId])
+  @@map("submissions")
+}
+
+// ==========================================
+// 🎓 ACADÉMIE & FORMATIONS COMMERCIAUX
+// ==========================================
+
+model Course {
+  id          String        @id @default(uuid())
   title       String
   description String?
   category    String
-  contentType String       @default("document")
+  contentType String        @default("document")
   contentUrl  String
   duration    Int?
   targetRoles String?
-  points      Int          @default(0)
+  points      Int           @default(0)
   badge       String?
-  isPublished Boolean      @default(false)
+  isPublished Boolean       @default(false)
   publishedAt DateTime?
   createdBy   String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   chapters    Chapter[]
-  enrollments Enrollment[]
+  enrollments Enrollments[]
 
   @@index([category])
   @@index([isPublished])
+  @@map("courses")
 }
 
 model Chapter {
@@ -412,25 +602,27 @@ model Chapter {
   duration    Int?
   quiz        String?
   createdAt   DateTime @default(now())
-  course      Course   @relation(fields: [courseId], references: [id])
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([courseId, order])
   @@index([courseId])
+  @@map("chapters")
 }
 
-model Enrollment {
+model Enrollments {
   id          String    @id @default(uuid())
   userId      String
   courseId    String
   status      String
   progress    Float     @default(0)
   completedAt DateTime?
-  course      Course    @relation(fields: [courseId], references: [id])
-  user        User      @relation(fields: [userId], references: [id])
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
   @@index([userId])
   @@index([courseId])
+  @@map("enrollments")
 }
 
 model Assessment {
@@ -443,6 +635,7 @@ model Assessment {
   createdAt    DateTime @default(now())
 
   @@index([courseId])
+  @@map("assessments")
 }
 
 model UserAssessment {
@@ -454,10 +647,11 @@ model UserAssessment {
   answers      String
   timeTaken    Int
   takenAt      DateTime @default(now())
-  user         User     @relation("UserAssessments", fields: [userId], references: [id])
+  user         User     @relation("UserAssessments", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([assessmentId])
+  @@map("user_assessments")
 }
 
 model UserPoints {
@@ -467,18 +661,20 @@ model UserPoints {
   action    String
   metadata  String?
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@map("user_points")
 }
 
 model UserLevel {
-  id          String   @id @default(uuid())
-  userId      String
-  level       Int      @default(1)
+  id         String   @id @default(uuid())
+  userId     String
+  level      Int      @default(1)
   totalPoints Int      @default(0)
-  achievedAt  DateTime @default(now())
-  user        User     @relation("UserLevel", fields: [userId], references: [id])
+  achievedAt DateTime @default(now())
+  user       User     @relation("UserLevel", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@map("user_levels")
 }

@@ -1,137 +1,130 @@
-import { PrismaClient } from '@prisma/client'
-import * as bcrypt from 'bcrypt'
+import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient()
+// 🎯 Injection directe pour forcer Prisma à s'authentifier correctement au pooler de ton projet ritqiabrmetafusfghdc
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: "postgresql://postgres.ritqiabrmetafusfghdc:Welcome2026Crmsfa@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&sslmode=require",
+    },
+  },
+});
 
 async function main() {
-  console.log('🌱 Début du seeding de la base de données...')
+  console.log('🌱 [Seed] Initialisation du jeu de données Multi-Tenant...');
 
-  // Hash du mot de passe par défaut
-  const defaultPassword = await bcrypt.hash('SFA2024Admin!', 10)
+  // 🎯 SÉCURITÉ POOLER : Pas de deleteMany global pour éviter le blocage de PgBouncer
 
-  // Créer un utilisateur admin
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@sfa.com' },
-    update: {},
-    create: {
-      email: 'admin@sfa.com',
-      password: defaultPassword,
-      firstName: 'Admin',
-      lastName: 'SFA',
-      role: 'ADMIN',
-      phone: '+221771234567',
-      matricule: 'ADM001',
-      isActive: true,
-      status: 'ACTIVE',
+  // 1. Création du premier Tenant (Entreprise Cliente)
+  const tenant = await prisma.tenant.create({
+    data: {
+      companyName: "Fan Milk Côte d'Ivoire",
+      industry: 'FMCG_FROZEN',
     },
-  })
+  });
+  console.log(`🏢 Tenant créé : ${tenant.companyName} (${tenant.id})`);
 
-  console.log('✅ Admin créé:', admin.email)
-
-  // Créer un utilisateur manager
-  const manager = await prisma.user.upsert({
-    where: { email: 'manager@sfa.com' },
-    update: {},
-    create: {
-      email: 'manager@sfa.com',
-      password: await bcrypt.hash('SFA2024Manager!', 10),
-      firstName: 'Manager',
-      lastName: 'SFA',
-      role: 'SUP',
-      phone: '+221772345678',
-      matricule: 'MGR002',
-      isActive: true,
-      status: 'ACTIVE',
-      managerId: admin.id,
-    },
-  })
-
-  console.log('✅ Manager créé:', manager.email)
-
-  // Créer un utilisateur vendor (représentant)
-  const vendor = await prisma.user.upsert({
-    where: { email: 'vendor@sfa.com' },
-    update: {},
-    create: {
-      email: 'vendor@sfa.com',
-      password: await bcrypt.hash('SFA2024Vendor!', 10),
-      firstName: 'Vendor',
-      lastName: 'SFA',
-      role: 'REP',
-      phone: '+221773456789',
-      matricule: 'VND001',
-      isActive: true,
-      status: 'ACTIVE',
-      managerId: manager.id,
-    },
-  })
-
-  console.log('✅ Vendor créé:', vendor.email)
-
-  // Créer un territoire de test
-  const territory = await prisma.territory.upsert({
-    where: { code: 'TEST-SECTEUR' },
-    update: {},
-    create: {
-      code: 'TEST-SECTEUR',
-      name: 'Secteur de Test',
+  // 2. Création du Secteur / Territoire de référence
+  const territory = await prisma.territory.create({
+    data: {
+      tenantId: tenant.id,
+      code: 'CIV-ABJ-MARCORY',
+      name: 'Marcory Zone 4',
       level: 'SECTEUR',
-      lat: 14.7167,
-      lng: -17.4677,
-      population: 100000,
-      superficie: 50.5,
-      isActive: true,
-    },
-  })
-
-  console.log('✅ Territoire créé:', territory.name)
-
-  // Créer une catégorie de produit
-  const category = await prisma.productCategory.upsert({
-    where: { name: 'Boissons' },
-    update: {},
-    create: {
-      name: 'Boissons',
-      displayName: 'Boissons',
-      active: true,
-    },
-  })
-
-  console.log('✅ Catégorie créée:', category.name)
-
-  // Créer un utilisateur simple avec mot de passe simple
-  const simplePassword = await bcrypt.hash('admin123', 10);
-  const simpleUser = await prisma.user.upsert({
-    where: { email: 'simple@test.com' },
-    update: {},
-    create: {
-      email: 'simple@test.com',
-      password: simplePassword,
-      firstName: 'Simple',
-      lastName: 'User',
-      role: 'ADMIN',
-      phone: '+221777777777',
-      matricule: 'SIM001',
-      isActive: true,
-      status: 'ACTIVE',
     },
   });
 
-  console.log('✅ Utilisateur simple créé:', simpleUser.email)
+  // 3. Création d'un utilisateur Superviseur
+  const hashedPassword = await bcrypt.hash('Salesconnected2026!', 10);
+  const manager = await prisma.user.create({
+    data: {
+      tenantId: tenant.id,
+      email: 'superviseur.abidjan@fanmilk.ci',
+      password: hashedPassword,
+      firstName: 'Ange',
+      lastName: 'Touré',
+      role: 'MANAGER',
+      phone: '+2250700000000',
+      matricule: 'FM-2026-001',
+      status: 'ACTIVE',
+    },
+  });
+  console.log(`👤 Utilisateur Manager créé : ${manager.email}`);
 
-  console.log('🎉 Seeding terminé avec succès!')
-  console.log('📝 Identifiants de login:')
-  console.log('   Admin: admin@sfa.com / SFA2024Admin!')
-  console.log('   Manager: manager@sfa.com / SFA2024Manager!')
-  console.log('   Vendor: vendor@sfa.com / SFA2024Vendor!')
-  console.log('   Simple: simple@test.com / admin123')
+  // 4. Création de la hiérarchie de distribution (Grossiste -> Ambulant)
+  const grossisteKD = await prisma.outlet.create({
+    data: {
+      tenantId: tenant.id,
+      code: 'KD-ALIBABA-01',
+      name: 'Dépôt Grossiste Ali Baba',
+      channel: 'KEY_DISTRIBUTOR',
+      status: 'VALIDATED',
+      lat: 5.316667,
+      lng: -3.983333,
+      territoryId: territory.id,
+    },
+  });
+
+  await prisma.outlet.create({
+    data: {
+      tenantId: tenant.id,
+      code: 'OUT-CHARLIE-04',
+      name: 'Pousse-Pousse Charlie 04',
+      channel: 'AMBULANT',
+      status: 'VALIDATED',
+      lat: 5.318000,
+      lng: -3.985000,
+      territoryId: territory.id,
+      parentId: grossisteKD.id,
+    },
+  });
+  console.log('🏪 Hiérarchie commerciale (Grossiste -> Vendeur Ambulant) injectée.');
+
+  // 5. Création d'un produit avec conversion d'unité stricte
+  const category = await prisma.productCategory.create({
+    data: { tenantId: tenant.id, name: 'GLACES' },
+  });
+  const subCat = await prisma.productSubCategory.create({
+    data: { categoryId: category.id, name: 'BATONNETS' },
+  });
+  const brand = await prisma.productBrand.create({
+    data: { subProductCategoryId: subCat.id, name: 'STAR' },
+  });
+  const format = await prisma.productPackFormat.create({
+    data: { brandId: brand.id, name: '150ML' },
+  });
+
+  const skuStar = await prisma.sKU.create({
+    data: {
+      tenantId: tenant.id,
+      name: 'STAR 150 ml VANILLE',
+      ean: '6131234567890',
+      code: 'SKU-STAR-VAN',
+      packFormatId: format.id,
+      priceHt: 84.0,
+      baseUnit: 'SACHET',
+    },
+  });
+
+  await prisma.productPackaging.create({
+    data: {
+      skuId: skuStar.id,
+      name: 'CARTON',
+      conversionFactor: 100,
+    },
+  });
+  console.log('📦 Catalogue SKU connecté avec règles de conversion d\'unités.');
+
+  console.log('\n✨ [Seed Terminé] Ta base multi-tenant est prête pour le développement !');
+  console.log(`\n💡 NOTE POUR TES FUTURS TESTS : Utilise le header HTTP suivant :`);
+  console.log(`   X-Tenant-ID : ${tenant.id}`);
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Erreur lors du seeding:', e)
-    process.exit(1)
+    console.error(e);
+    process.exit(1);
   })
   .finally(async () => {
-    await prisma.$disconnect()
-  })
+    await prisma.$disconnect();
+  });
