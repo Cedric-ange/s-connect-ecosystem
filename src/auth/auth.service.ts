@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 import { UsersService } from '../users/users.service';
@@ -17,20 +17,28 @@ export class AuthService {
     private prisma: PrismaService,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.findByEmail(email);
+  // 🛡️ La validation exige désormais STRICTEMENT le tenantId du header
+  async validateUser(email: string, password: string, tenantId: string): Promise<any> {
+    // Recherche de l'utilisateur uniquement AU SEIN de son entreprise cliente
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email: email,
+        tenantId: tenantId, // Étanche aux collisions d'emails inter-entreprises
+      },
+    });
+
     if (user && await bcrypt.compare(password, user.password)) {
-      const { password, ...result } = user;
+      const { password: _, ...result } = user;
       return result;
     }
     return null;
   }
 
-  async login(loginDto: LoginDto) {
-    const user = await this.validateUser(loginDto.email, loginDto.password);
+  async login(loginDto: LoginDto, tenantId: string) {
+    const user = await this.validateUser(loginDto.email, loginDto.password, tenantId);
     
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Identifiants incorrects pour cette organisation.');
     }
 
     // Check 2FA if enabled
@@ -65,25 +73,30 @@ export class AuthService {
     };
   }
 
-  async register(registerDto: RegisterDto) {
-    // Check if user exists
-    const existingUser = await this.usersService.findByEmail(registerDto.email);
+  async register(registerDto: RegisterDto, tenantId: string) {
+    // Vérification de l'existence au sein du même Tenant
+    const existingUser = await this.prisma.user.findFirst({
+      where: { email: registerDto.email, tenantId },
+    });
     if (existingUser) {
-      throw new BadRequestException('User already exists');
+      throw new BadRequestException('User already exists in this organization');
     }
 
-    const existingMatricule = await this.usersService.findByMatricule(registerDto.matricule);
+    const existingMatricule = await this.prisma.user.findFirst({
+      where: { matricule: registerDto.matricule, tenantId },
+    });
     if (existingMatricule) {
-      throw new BadRequestException('Matricule already exists');
+      throw new BadRequestException('Matricule already exists in this organization');
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // Create user
+    // Create user lié magiquement à son Tenant
     const user = await this.prisma.user.create({
       data: {
         ...registerDto,
+        tenantId, // 🏢 Liaison clé étrangère obligatoire
         password: hashedPassword,
         hireDate: registerDto.hireDate ? new Date(registerDto.hireDate) : null,
       },
@@ -105,13 +118,14 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tenantId: user.tenantId, // 🔑 On injecte le tenantId dans le JWT pour sécuriser Passport !
     };
 
     const access_token = this.jwtService.sign(payload);
     
     const refresh_token = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION', '30d'),
+      secret: this.configService.get<string>('JWT_REFRESH_SECRET') ?? '',
+      expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRATION') ?? '30d',
     });
 
     // Save refresh token
@@ -128,11 +142,10 @@ export class AuthService {
 
   async refreshToken(refreshToken: string) {
     try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      this.jwtService.verify(refreshToken, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET') ?? '',
       });
 
-      // Check if refresh token exists in database
       const storedToken = await this.prisma.refreshToken.findUnique({
         where: { token: refreshToken },
         include: { user: true },
@@ -146,10 +159,8 @@ export class AuthService {
         throw new UnauthorizedException('User is inactive');
       }
 
-      // Generate new tokens
       const tokens = await this.generateTokens(storedToken.user);
 
-      // Delete old refresh token
       await this.prisma.refreshToken.delete({
         where: { id: storedToken.id },
       });
@@ -194,13 +205,12 @@ export class AuthService {
       issuer: 'SFA',
     });
 
-    // Save secret temporarily (not enabled yet)
     await this.prisma.user.update({
       where: { id: userId },
       data: { twoFactorSecret: secret.base32 },
     });
 
-    const qrCode = await QRCode.toDataURL(secret.otpauth_url);
+    const qrCode = await QRCode.toDataURL(secret.otpauth_url ?? '');
 
     return {
       success: true,
@@ -235,8 +245,8 @@ export class AuthService {
 
   async disableTwoFactor(userId: string, code: string) {
     const user = await this.usersService.findById(userId);
-    if (!user || !user.twoFactorEnabled) {
-      throw new BadRequestException('2FA not enabled');
+    if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
+      throw new BadRequestException('2FA not enabled or incomplete');
     }
 
     const isValid = this.verifyTwoFactor(user.twoFactorSecret, code);
@@ -259,7 +269,8 @@ export class AuthService {
     };
   }
 
-  private verifyTwoFactor(secret: string, token: string): boolean {
+  private verifyTwoFactor(secret: string | null, token: string): boolean {
+    if (!secret) return false;
     return speakeasy.totp.verify({
       secret,
       encoding: 'base32',

@@ -12,28 +12,28 @@ const ENABLE_QUEUES = process.env.ENABLE_QUEUES === 'true';
       name: 'email',
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT) || 6379,
+        port: parseInt(process.env.REDIS_PORT ?? '6379'), // Corrigé
       },
     }),
     BullModule.registerQueue({
       name: 'analytics',
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT) || 6379,
+        port: parseInt(process.env.REDIS_PORT ?? '6379'), // Corrigé
       },
     }),
     BullModule.registerQueue({
       name: 'data-pipeline',
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT) || 6379,
+        port: parseInt(process.env.REDIS_PORT ?? '6379'), // Corrigé
       },
     }),
     BullModule.registerQueue({
       name: 'ml-predictions',
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT) || 6379,
+        port: parseInt(process.env.REDIS_PORT ?? '6379'), // Corrigé
       },
     }),
   ] : [],

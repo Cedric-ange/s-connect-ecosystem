@@ -2,7 +2,13 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class AppService {
-  getHello(): string {
-    return 'Hello World!';
+  getSystemStatus() {
+    return {
+      status: 'healthy',
+      service: 'Salesconnected SFA API',
+      version: '1.0.0-beta',
+      timestamp: new Date().toISOString(),
+      architecture: 'Multi-Tenant (X-Tenant-ID isolation enabled)',
+    };
   }
 }

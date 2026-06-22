@@ -49,3 +49,4 @@ lerna-debug.log*
 # dev.db = SQLite local
 prisma/dev.db
 prisma/dev.db-*
+.vercel

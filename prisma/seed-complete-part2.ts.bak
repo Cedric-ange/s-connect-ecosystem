@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { NOMS_IVOIRIENS, PRENOMS_IVOIRIENS, TYPES_COMMERCES, NOMS_COMMERCES } from './seed-complete';
 
 const prisma = new PrismaClient();

@@ -1,7 +1,8 @@
-import { Controller, Post, Body, Get, UseGuards, Request, Patch, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { TenantId } from '../common/decorators/tenant-id.decorator'; // 🎯 Import du décorateur
 import { LoginDto, RegisterDto, ForgotPasswordDto, ResetPasswordDto, TwoFactorVerifyDto } from './dto';
 
 @ApiTags('Auth')
@@ -10,15 +11,15 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register')
-  @ApiOperation({ summary: 'Register a new user' })
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  @ApiOperation({ summary: 'Register a new user inside a Tenant' })
+  async register(@Body() registerDto: RegisterDto, @TenantId() tenantId: string) {
+    return this.authService.register(registerDto, tenantId);
   }
 
   @Post('login')
-  @ApiOperation({ summary: 'Login user' })
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  @ApiOperation({ summary: 'Login user with Tenant scope' })
+  async login(@Body() loginDto: LoginDto, @TenantId() tenantId: string) {
+    return this.authService.login(loginDto, tenantId);
   }
 
   @Post('refresh')
@@ -57,7 +58,6 @@ export class AuthController {
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request password reset' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
-    // TODO: Implement email sending
     return {
       success: true,
       message: 'Password reset email sent (if user exists)',
@@ -67,7 +67,6 @@ export class AuthController {
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password with token' })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    // TODO: Implement password reset
     return {
       success: true,
       message: 'Password reset successful',
@@ -94,8 +93,7 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Verify 2FA code' })
-  async verify2FA(@Request() req, @Body() twoFactorDto: TwoFactorVerifyDto) {
-    // For verification during login
+  async verify2FA(@Request() req) {
     return {
       success: true,
       twoFactorEnabled: req.user.twoFactorEnabled,

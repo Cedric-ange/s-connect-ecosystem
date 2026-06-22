@@ -20,13 +20,11 @@ export class CloudinaryService {
     });
   }
 
-  async uploadImage(
-    file: Express.Multer.File,
-    folder?: string,
-  ): Promise<string> {
+  // 📸 Paramètres nettoyés et ordonnés correctement (les types Multer brisés sont supprimés)
+  async uploadImage(file: any, folder?: string): Promise<string> {
     console.log(' Starting upload to Cloudinary');
 
-    if (!file.buffer) {
+    if (!file || !file.buffer) {
       throw new Error(
         'File buffer is missing. Multer must be configured with memoryStorage.',
       );
@@ -51,11 +49,10 @@ export class CloudinaryService {
           result: UploadApiResponse | undefined,
         ) => {
           if (error) {
-            console.error(' Cloudinary upload error:');
-            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            console.error(' Cloudinary upload error:', error);
             reject(error);
           } else if (result) {
-            console.log(' Upload successful:');
+            console.log(' Upload successful');
             resolve(result.secure_url);
           } else {
             console.error(' Upload failed without error');
@@ -76,7 +73,7 @@ export class CloudinaryService {
     try {
       await cloudinary.uploader.destroy(publicId);
     } catch (error) {
-      console.error('Error deleting image from Cloudinary');
+      console.error('Error deleting image from Cloudinary', error);
       throw error;
     }
   }

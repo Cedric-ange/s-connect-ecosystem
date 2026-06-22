@@ -134,8 +134,9 @@ export class AnalyticsService {
     };
   }
 
+  // Remplacer les 3 méthodes privées tout en bas du fichier
   private generateDailyTrend(days: number) {
-    const trend = [];
+    const trend: any[] = []; // Corrigé
     for (let i = days; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -149,7 +150,7 @@ export class AnalyticsService {
   }
 
   private generateWeeklyTrend(weeks: number) {
-    const trend = [];
+    const trend: any[] = []; // Corrigé
     for (let i = weeks; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - (i * 7));
@@ -164,7 +165,7 @@ export class AnalyticsService {
   }
 
   private generateOutletPerformance(count: number) {
-    const performance = [];
+    const performance: any[] = []; // Corrigé
     for (let i = 0; i < count; i++) {
       performance.push({
         outletId: `OUT${String(i + 1).padStart(3, '0')}`,
@@ -176,5 +177,4 @@ export class AnalyticsService {
       });
     }
     return performance.sort((a, b) => b.sales - a.sales);
-  }
-}
+  }}

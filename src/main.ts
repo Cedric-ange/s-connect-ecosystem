@@ -9,10 +9,14 @@ export async function createApp() {
   // Global prefix
   app.setGlobalPrefix('api');
 
-  // CORS - Permettre les connexions depuis le frontend
+  // CORS - Permettre les connexions depuis le frontend (Local, Mobile et Production)
   const allowedOrigins = process.env.FRONTEND_URL
     ? process.env.FRONTEND_URL.split(',').map((origin) => origin.trim())
-    : ['http://localhost:5173', 'http://localhost:5174'];
+    : [
+        'http://localhost:5173', 
+        'http://localhost:5174', 
+        'https://salesconnected-frontend.vercel.app' // Ajout de ton Frontend de production
+      ];
 
   app.enableCors({
     origin: allowedOrigins,

@@ -8,73 +8,40 @@ export class OrderIntelligenceService {
   constructor(private readonly httpService: HttpService) {}
 
   // Prédire la quantité optimale de commande
-  async predictOrder(data: {
-    outletId: string;
-    historicalData: {
-      avgOrderQty: number;
-      orderFrequency: number;
-      lastOrderDays: number;
-    };
-  }) {
+async predictOrder(data: { outletId: string; historicalData: any }) {
     try {
-      const response = await this.httpService.post(
-        `${this.mlServiceUrl}/api/orders/predict`,
-        data,
-      ).toPromise();
-      
-      return response.data;
+      const response = await this.httpService.post(`${this.mlServiceUrl}/api/orders/predict`, data).toPromise();
+      return response?.data; // Corrigé
     } catch (error) {
-      // Simulation si ML Service non disponible
       console.log('ML Service non disponible, utilisation de simulation');
       return this.simulatePrediction(data);
     }
   }
 
-  // Optimiser une commande existante
-  async optimizeOrder(data: {
-    currentOrder: any[];
-    outletId: string;
-    constraints?: any;
-  }) {
+  async optimizeOrder(data: any) {
     try {
-      const response = await this.httpService.post(
-        `${this.mlServiceUrl}/api/orders/optimize`,
-        data,
-      ).toPromise();
-      
-      return response.data;
+      const response = await this.httpService.post(`${this.mlServiceUrl}/api/orders/optimize`, data).toPromise();
+      return response?.data; // Corrigé
     } catch (error) {
       console.log('ML Service non disponible, utilisation de simulation');
       return this.simulateOptimization(data);
     }
   }
 
-  // Obtenir des recommandations pour un point de vente
   async getRecommendations(outletId: string) {
     try {
-      const response = await this.httpService.get(
-        `${this.mlServiceUrl}/api/orders/recommendations/${outletId}`,
-      ).toPromise();
-      
-      return response.data;
+      const response = await this.httpService.get(`${this.mlServiceUrl}/api/orders/recommendations/${outletId}`).toPromise();
+      return response?.data; // Corrigé
     } catch (error) {
       console.log('ML Service non disponible, utilisation de simulation');
       return this.simulateRecommendations(outletId);
     }
   }
 
-  // Détection d'anomalies dans les commandes
-  async detectAnomalies(data: {
-    orders: any[];
-    timeframe?: string;
-  }) {
+  async detectAnomalies(data: any) {
     try {
-      const response = await this.httpService.post(
-        `${this.mlServiceUrl}/api/orders/anomalies`,
-        data,
-      ).toPromise();
-      
-      return response.data;
+      const response = await this.httpService.post(`${this.mlServiceUrl}/api/orders/anomalies`, data).toPromise();
+      return response?.data; // Corrigé
     } catch (error) {
       console.log('ML Service non disponible, utilisation de simulation');
       return this.simulateAnomalies(data);

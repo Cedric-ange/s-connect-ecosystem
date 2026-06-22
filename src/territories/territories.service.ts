@@ -183,7 +183,7 @@ export class TerritoriesService {
     }
 
     // Récupérer le secteur assigné si assignedSectorId existe
-    let sector = null;
+    let sector: any = null; // Corrigé
     let outlets = [];
     if (vendor.assignedSectorId) {
       sector = await this.prisma.territory.findUnique({
@@ -309,7 +309,7 @@ export class TerritoriesService {
     // Pour chaque vendor, récupérer son secteur si assignedSectorId existe
     const vendorsWithSectors = await Promise.all(
       vendors.map(async (vendor) => {
-        let assignedSector = null;
+        let assignedSector: any = null;
         if (vendor.assignedSectorId) {
           assignedSector = await this.prisma.territory.findUnique({
             where: { id: vendor.assignedSectorId },

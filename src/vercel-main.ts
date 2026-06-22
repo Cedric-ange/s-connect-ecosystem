@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 
-let cachedServer;
+let cachedServer: any;
 
 export async function bootstrapServer() {
   if (!cachedServer) {
@@ -11,16 +11,19 @@ export async function bootstrapServer() {
     app.setGlobalPrefix('api');
     app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
     
-    // Configuration CORS dynamique pour accepter localhost et ton domaine Vercel
-    app.enableCors({
-      origin: [
-        'http://localhost:5173',
-        'http://localhost:5174',
-        process.env.FRONTEND_URL
-      ].filter(Boolean),
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+    // 🌐 MIDDLEWARE CORS MANUEL POUR VERCEL SERVERLESS
+    const serverInstance = app.getHttpAdapter().getInstance();
+    serverInstance.use((req: any, res: any, next: any) => {
+      res.setHeader('Access-Control-Allow-Origin', 'https://salesconnected-frontend.vercel.app');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      
+      // Réponse immédiate 200 OK aux requêtes de preflight (OPTIONS)
+      if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+      }
+      next();
     });
 
     await app.init();
@@ -29,8 +32,7 @@ export async function bootstrapServer() {
   return cachedServer;
 }
 
-// Handler requis par Vercel
-export default async (req, res) => {
+export default async (req: unknown, res: unknown) => {
   const server = await bootstrapServer();
   return server(req, res);
-}
+};
