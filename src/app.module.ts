@@ -13,6 +13,7 @@ import { TerritoriesModule } from './territories/territories.module';
 import { OutletsModule } from './outlets/outlets.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { VisitsModule } from './visits/visits.module';
+import { OrdersModule } from './orders/orders.module'; // 🎯 Corrigé : Majuscule sur OrdersModule
 
 // Modules ML avancés existants
 import { QueueModule } from './queue/queue.module';
@@ -25,13 +26,14 @@ import { AnalyticsModule } from './analytics/analytics.module';
       isGlobal: true,
     }),
     PrismaModule,
-    ProductsModule, // 📦 Ajout du catalogue produits multi-tenant
+    ProductsModule, // 📦 Catalogue produits multi-tenant
     AuthModule,
     UsersModule,
     TerritoriesModule,
     OutletsModule,
     CloudinaryModule,
     VisitsModule,
+    OrdersModule, // 🚚 Ajouté : Intégration du module logistique et ventes RTM
     QueueModule,
     OrderIntelligenceModule,
     AnalyticsModule,

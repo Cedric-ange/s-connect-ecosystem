@@ -14,13 +14,13 @@ datasource db {
 
 model Tenant {
   id          String   @id @default(uuid())
-  companyName String   @map("company_name") // ex: "Fan Milk CI", "Solibra", "Dangote"
-  industry    String   // ex: "FMCG_FROZEN", "BEVERAGES", "CONSTRUCTION"
+  companyName String   @map("company_name") 
+  industry    String   
+  logoUrl     String?  @map("logo_url") // 🎯 Corrigé : Ajout pour l'onboarding automatique du logo corporate
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  // Relations vers tout l'écosystème
   users        User[]
   territories  Territory[]
   outlets      Outlet[]
@@ -29,6 +29,8 @@ model Tenant {
   orders       Order[]
   visits       Visit[]
   dynamicForms DynamicForm[]
+  vendorStocks VendorStock[] 
+  rtmTargets   RtmTarget[] // 🎯 Ajout de la relation pour les objectifs standards
 
   @@map("tenants")
 }
@@ -39,12 +41,12 @@ model Tenant {
 
 model User {
   id                  String           @id @default(uuid())
-  tenantId            String           @map("tenant_id") // Liaison Multi-Tenant
+  tenantId            String           @map("tenant_id") 
   email               String           @unique
   password            String
   firstName           String
   lastName            String
-  role                String           @default("REP") // REP, MANAGER, ADMIN, KD...
+  role                String           @default("REP") 
   phone               String
   matricule           String           @unique
   photoUrl            String?
@@ -61,7 +63,6 @@ model User {
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
   
-  // Relations existantes
   tenant              Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   enrollments         Enrollments[]
   merchandisingChecks MerchCheck[]
@@ -76,6 +77,11 @@ model User {
   userPoints          UserPoints[]
   vendorStockItems    VendorStock[]
   visits              Visit[]
+
+  // 🎯 Relations opposées obligatoires pour le moteur No-Code et les performances RTM
+  workflowTargets     WorkflowTarget[]
+  submissions         Submission[]
+  rtmTargets          RtmTarget[]
 
   @@index([tenantId])
   @@index([email])
@@ -105,7 +111,7 @@ model RefreshToken {
 
 model Territory {
   id                  String      @id @default(uuid())
-  tenantId            String      @map("tenant_id") // Liaison Multi-Tenant
+  tenantId            String      @map("tenant_id") 
   code                String      @unique
   name                String
   level               String      @default("SECTEUR")
@@ -145,15 +151,15 @@ model Territory {
 }
 
 // ==========================================
-// 🏪 CLIENTS & POINTS DE VENTE (Auto-Hiérarchie intégrée)
+// 🏪 CLIENTS & POINTS DE VENTE
 // ==========================================
 
 model Outlet {
   id                String       @id @default(uuid())
-  tenantId          String       @map("tenant_id") // Liaison Multi-Tenant
+  tenantId          String       @map("tenant_id") 
   code              String       @unique
   name              String
-  channel           String       // KD (Grossiste), GMS, RETAIL, AMBULANT...
+  channel           String       
   segment           String?
   address           String?
   lat               Float?
@@ -171,7 +177,6 @@ model Outlet {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  // 🔄 Cascade de distribution : Liaison Grossiste ➔ Sous-comptes / Ambulants
   parentId          String?      @map("parent_id")
   parent            Outlet?      @relation("DistributionChain", fields: [parentId], references: [id])
   subOutlets        Outlet[]     @relation("DistributionChain")
@@ -187,15 +192,13 @@ model Outlet {
   @@index([tenantId])
   @@index([code])
   @@index([territoryId])
-  @@index([sectorId])
   @@index([status])
-  @@index([proposedBy])
   @@index([parentId])
   @@map("outlets")
 }
 
 // ==========================================
-// 📦 CATALOGUE PRODUIT STRUCTURÉ (Agnostique + Multi-Unités)
+// 📦 CATALOGUE PRODUIT STRUCTURÉ
 // ==========================================
 
 model ProductCategory {
@@ -262,7 +265,7 @@ model ProductPackFormat {
 
 model SKU {
   id               String             @id @default(uuid())
-  tenantId         String             @map("tenant_id") // Liaison Multi-Tenant
+  tenantId         String             @map("tenant_id") 
   name             String
   displayName      String?
   ean              String             @unique
@@ -274,7 +277,7 @@ model SKU {
   photo            String?
   priceHt          Float
   vatRate          Float              @default(19.6)
-  baseUnit         String             @default("UNIT") @map("base_unit") // ex: "SACHET", "BOUTEILLE", "SAC"
+  baseUnit         String             @default("UNIT") @map("base_unit") 
   active           Boolean            @default(true)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -284,22 +287,19 @@ model SKU {
   orderLines       OrderLine[]
   packFormat       ProductPackFormat  @relation(fields: [packFormatId], references: [id], onDelete: Cascade)
   stockItems       VendorStock[]
-  packagings       ProductPackaging[] // Unités de conversion dynamiques (ex: Cartons, Casier)
+  packagings       ProductPackaging[] 
 
   @@index([tenantId])
-  @@index([ean])
-  @@index([code])
   @@index([packFormatId])
   @@index([active])
   @@map("skus")
 }
 
-// 📏 Table pour éviter les erreurs d'unités de FieldPro (Mappage des cartons, palettes...)
 model ProductPackaging {
   id               String   @id @default(uuid())
   skuId            String   @map("sku_id")
-  name             String   // ex: "CARTON", "CASIER", "PACK"
-  conversionFactor Int      @map("conversion_factor") // ex: 100 (pour 100 sachets)
+  name             String   
+  conversionFactor Int      @map("conversion_factor") 
   
   sku              SKU      @relation(fields: [skuId], references: [id], onDelete: Cascade)
   
@@ -340,7 +340,6 @@ model Order {
   stockMovements StockHistory[]
 
   @@index([tenantId])
-  @@index([orderNumber])
   @@index([outletId])
   @@index([userId])
   @@index([status])
@@ -362,6 +361,7 @@ model OrderLine {
 
   @@index([orderId])
   @@index([skuId])
+  @@index([orderId, skuId]) 
   @@map("order_lines")
 }
 
@@ -436,7 +436,6 @@ model MerchCheckItem {
 
   @@index([merchCheckId])
   @@index([skuId])
-  @@index([merchandisingCheckId])
   @@map("merch_check_items")
 }
 
@@ -454,7 +453,6 @@ model MerchPhoto {
   merchCheck           MerchCheck @relation(fields: [merchCheckId], references: [id], onDelete: Cascade)
 
   @@index([merchCheckId])
-  @@index([merchandisingCheckId])
   @@map("merch_photos")
 }
 
@@ -464,6 +462,7 @@ model MerchPhoto {
 
 model VendorStock {
   id             String         @id @default(uuid())
+  tenantId       String         @map("tenant_id") 
   userId         String
   skuId          String
   quantity       Int            @default(0)
@@ -473,8 +472,10 @@ model VendorStock {
   movements      StockHistory[]
   sku            SKU            @relation(fields: [skuId], references: [id])
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade) 
 
   @@unique([userId, skuId])
+  @@index([tenantId])
   @@index([userId])
   @@index([skuId])
   @@map("vendor_stocks")
@@ -496,12 +497,36 @@ model StockHistory {
   @@index([stockItemId])
   @@index([movementType])
   @@index([createdAt])
-  @@index([orderId])
   @@map("stock_histories")
 }
 
 // ==========================================
-// 📝 LE FORMULAIRE NO-CODE SÉCURISÉ & TYPÉ
+// 🎯 OBJECTIFS COMMERCIAUX RTM STANDARDS
+// ==========================================
+
+model RtmTarget {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  userId           String   @map("user_id")          
+  month            Int                               
+  year             Int                               
+  targetCa         Float    @default(0)              @map("target_ca")      
+  targetVisits     Int      @default(0)              @map("target_visits")  
+  targetStrikeRate Float    @default(0)              @map("target_strike_rate")
+  createdAt        DateTime @default(now())           @map("created_at")
+  updatedAt        DateTime @updatedAt                @map("updated_at")
+
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month, year])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("rtm_targets")
+}
+
+// ==========================================
+// 📝 LE FORMULAIRE NO-CODE & WORKFLOWS RELATIONNELS
 // ==========================================
 
 enum FieldType {
@@ -510,6 +535,7 @@ enum FieldType {
   BOOLEAN
   GPS
   PHOTO
+  RELATION_DROP_DOWN 
 }
 
 enum FormPurpose {
@@ -517,49 +543,74 @@ enum FormPurpose {
   STOCK_AUDIT
   ASSET_CHECK
   GENERIC_SURVEY
+  COMMANDO_STREET     
 }
 
 model DynamicForm {
-  id          String       @id @default(uuid())
-  tenantId    String       @map("tenant_id")
+  id          String          @id @default(uuid())
+  tenantId    String          @map("tenant_id")
   title       String
-  purpose     FormPurpose  @default(GENERIC_SURVEY)
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  purpose     FormPurpose     @default(GENERIC_SURVEY)
+  isWorkflow  Boolean         @default(true)      
+  createdAt   DateTime        @default(now())     @map("created_at")
+  updatedAt   DateTime        @updatedAt          @map("updated_at")
 
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   fields      FormField[]
   submissions Submission[]
+  targets     WorkflowTarget[] 
 
   @@index([tenantId])
   @@map("dynamic_forms")
 }
 
 model FormField {
-  id          String      @id @default(uuid())
-  formId      String      @map("form_id")
-  label       String
-  type        FieldType
-  isRequired  Boolean     @default(false) @map("is_required")
+  id               String      @id @default(uuid())
+  formId           String      @map("form_id")
+  label            String      
+  type             FieldType
+  isRequired       Boolean     @default(false) @map("is_required")
+  order            Int         @default(0)     
+  isForeignKey     Boolean     @default(false) @map("is_foreign_key")
+  referencesFormId String?     @map("references_form_id") 
 
-  form        DynamicForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  form             DynamicForm @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([formId])
   @@map("form_fields")
 }
 
-model Submission {
-  id          String      @id @default(uuid())
-  formId      String      @map("form_id")
-  outletId    String      @map("outlet_id")
-  payload     Json        // Stockage JSONB flexible validé
-  createdAt   DateTime    @default(now()) @map("created_at")
+model WorkflowTarget {
+  id            String      @id @default(uuid())
+  formId        String      @map("form_id")
+  userId        String      @map("user_id")     
+  targetValue   Float       @map("target_value") 
+  createdAt     DateTime    @default(now()) @map("created_at")
 
-  form        DynamicForm @relation(fields: [formId], references: [id], onDelete: Cascade)
-  outlet      Outlet      @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  form          DynamicForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([formId, userId])
+  @@map("workflow_targets")
+}
+
+model Submission {
+  id          String       @id @default(uuid())
+  formId      String       @map("form_id")
+  userId      String       @map("user_id")     
+  outletId    String?      @map("outlet_id")   
+  payload     Json         
+  importedVia String?      @default("MOBILE")  
+  createdAt     DateTime     @default(now())     @map("created_at")
+
+  form        DynamicForm  @relation(fields: [formId], references: [id], onDelete: Cascade)
+  outlet      Outlet?      @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([formId])
+  @@index([userId])
   @@index([outletId])
+  @@index([formId, outletId])
   @@map("submissions")
 }
 
@@ -605,7 +656,6 @@ model Chapter {
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([courseId, order])
-  @@index([courseId])
   @@map("chapters")
 }
 
@@ -621,7 +671,6 @@ model Enrollments {
 
   @@unique([userId, courseId])
   @@index([userId])
-  @@index([courseId])
   @@map("enrollments")
 }
 

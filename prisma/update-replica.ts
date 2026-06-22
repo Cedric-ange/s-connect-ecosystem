@@ -16,7 +16,7 @@ const localPool = new Pool({
   port: 5432,
   database: 'fieldpro_civ_mirror',
   user: 'postgres',
-  password: 'T@ngeToure1201',
+  password: '@ngeToure1201',
 });
 
 async function updateDatabase() {

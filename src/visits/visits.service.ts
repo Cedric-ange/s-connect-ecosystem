@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVisitDto, VisitStatus } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
@@ -7,10 +7,23 @@ import { UpdateVisitDto } from './dto/update-visit.dto';
 export class VisitsService {
   constructor(private prisma: PrismaService) {}
 
+  // 📐 Formule de Haversine pour calculer la distance exacte en mètres entre deux points GPS
+  private getDistanceInMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371000; // Rayon de la Terre en mètres
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
   async create(userId: string, createVisitDto: CreateVisitDto, tenantId: string) {
     const { outletId, plannedDate, notes, status } = createVisitDto;
 
-    // 🛡️ Vérifier que l'outlet existe ET appartient au même Tenant
     const outlet = await this.prisma.outlet.findFirst({
       where: { 
         id: outletId,
@@ -22,12 +35,11 @@ export class VisitsService {
       throw new NotFoundException('Outlet not found in this organization');
     }
 
-    // 🏢 Créer la visite liée de force au bon Tenant
     return this.prisma.visit.create({
       data: {
         outletId,
         userId,
-        tenantId, // 🔑 Application de la clé d'isolation obligatoire !
+        tenantId,
         plannedDate: plannedDate ? new Date(plannedDate) : undefined,
         notes,
         status: status || VisitStatus.PLANNED,
@@ -40,7 +52,6 @@ export class VisitsService {
   }
 
   async findAll(userId: string, tenantId: string) {
-    // 🛡️ Filtre strict par utilisateur ET par organisation
     return this.prisma.visit.findMany({
       where: { 
         userId,
@@ -58,7 +69,6 @@ export class VisitsService {
   }
 
   async findOne(id: string, userId: string, tenantId: string) {
-    // 🛡️ Recherche incluant de base le tenantId pour l'étanchéité
     const visit = await this.prisma.visit.findFirst({
       where: { 
         id,
@@ -76,7 +86,6 @@ export class VisitsService {
       throw new NotFoundException('Visit not found');
     }
 
-    // Vérifier que l'utilisateur est le propriétaire
     if (visit.userId !== userId) {
       throw new ForbiddenException('You can only access your own visits');
     }
@@ -85,7 +94,6 @@ export class VisitsService {
   }
 
   async update(id: string, userId: string, updateVisitDto: UpdateVisitDto, tenantId: string) {
-    // Vérifier la présence de la visite au sein de l'organisation
     await this.findOne(id, userId, tenantId);
 
     return this.prisma.visit.update({
@@ -105,7 +113,6 @@ export class VisitsService {
   }
 
   async remove(id: string, userId: string, tenantId: string) {
-    // Vérifier la présence de la visite au sein de l'organisation
     await this.findOne(id, userId, tenantId);
 
     return this.prisma.visit.delete({
@@ -114,8 +121,33 @@ export class VisitsService {
   }
 
   async checkin(id: string, userId: string, lat: number, lng: number, tenantId: string) {
-    await this.findOne(id, userId, tenantId);
+    // 1. Récupérer la visite et valider la propriété/l'existence
+    const visit = await this.findOne(id, userId, tenantId);
 
+    // 2. S'assurer que le point de vente possède des coordonnées GPS valides
+    if (visit.outlet.lat === null || visit.outlet.lng === null) {
+      throw new BadRequestException("Le point de vente n'a pas de coordonnées GPS configurées.");
+    }
+
+    // 3. Bloquer si le mobile n'envoie pas de coordonnées valides
+    if (lat === undefined || lng === undefined || lat === null || lng === null) {
+      throw new BadRequestException("Coordonnées GPS de l'appareil manquantes pour le Check-in.");
+    }
+
+    // 4. Calculer l'écart métrique réel entre le vendeur et la boutique
+    const distance = this.getDistanceInMeters(lat, lng, visit.outlet.lat, visit.outlet.lng);
+    const RAYON_MAX_METRES = 20;
+
+    // 5. Sanctionner immédiatement si l'agent triche ou est trop loin
+    if (distance > RAYON_MAX_METRES) {
+      throw new BadRequestException({
+        success: false,
+        message: `Check-in refusé. Éloignement trop important (${Math.round(distance)}m). Vous devez être à moins de ${RAYON_MAX_METRES}m du point de vente.`,
+        distance: Math.round(distance)
+      });
+    }
+
+    // 6. Si tout est parfait, passer au statut IN_PROGRESS
     return this.prisma.visit.update({
       where: { id },
       data: {
@@ -151,7 +183,7 @@ export class VisitsService {
       where: {
         outletId,
         userId,
-        tenantId, // Isolation globale de la requête
+        tenantId,
       },
       include: {
         outlet: true,
@@ -172,7 +204,7 @@ export class VisitsService {
     return this.prisma.visit.findMany({
       where: {
         userId,
-        tenantId, // Isolation globale de la requête
+        tenantId,
         plannedDate: {
           gte: startOfDay,
           lte: endOfDay,
