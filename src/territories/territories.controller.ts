@@ -1,19 +1,24 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, Query, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query, Patch } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TerritoriesService } from './territories.service';
+import { TenantId } from '../common/decorators/tenant-id.decorator'; // 🎯 Extracteur d'organisation
 
 @ApiTags('Territories')
 @Controller('territories')
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
 export class TerritoriesController {
   constructor(private territoriesService: TerritoriesService) {}
 
   @Get()
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all territories' })
-  async findAll(@Query('level') level?: string, @Query('parentId') parentId?: string) {
-    const territories = await this.territoriesService.findAll({ level, parentId });
+  async findAll(
+    @TenantId() tenantId: string,
+    @Query('level') level?: string, 
+    @Query('parentId') parentId?: string
+  ) {
+    const territories = await this.territoriesService.findAll(tenantId, { level, parentId });
     return {
       success: true,
       data: territories,
@@ -22,11 +27,9 @@ export class TerritoriesController {
   }
 
   @Get('sectors')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all sectors' })
-  async getAllSectors(@Query('level') level?: string) {
-    const sectors = await this.territoriesService.findAllSectors({ level });
+  async getAllSectors(@TenantId() tenantId: string, @Query('level') level?: string) {
+    const sectors = await this.territoriesService.findAllSectors(tenantId, { level });
     return {
       success: true,
       data: sectors,
@@ -35,11 +38,9 @@ export class TerritoriesController {
   }
 
   @Get('sectors/:id')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get sector by ID' })
-  async getSectorById(@Param('id') id: string) {
-    const sector = await this.territoriesService.getSectorById(id);
+  async getSectorById(@Param('id') id: string, @TenantId() tenantId: string) {
+    const sector = await this.territoriesService.getSectorById(id, tenantId);
     return {
       success: true,
       data: sector,
@@ -48,11 +49,9 @@ export class TerritoriesController {
   }
 
   @Post('sectors')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new sector' })
-  async createSector(@Body() data: any) {
-    const sector = await this.territoriesService.createSector(data);
+  async createSector(@Body() data: any, @TenantId() tenantId: string) {
+    const sector = await this.territoriesService.createSector(data, tenantId);
     return {
       success: true,
       data: sector,
@@ -61,11 +60,12 @@ export class TerritoriesController {
   }
 
   @Post('sectors/assign-outlets')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Assign outlets to sector' })
-  async assignOutletsToSector(@Body() data: { sectorId: string; outletIds: string[] }) {
-    const result = await this.territoriesService.assignOutletsToSector(data);
+  async assignOutletsToSector(
+    @Body() data: { sectorId: string; outletIds: string[] },
+    @TenantId() tenantId: string
+  ) {
+    const result = await this.territoriesService.assignOutletsToSector(data, tenantId);
     return {
       success: true,
       data: result,
@@ -74,11 +74,12 @@ export class TerritoriesController {
   }
 
   @Post('sectors/assign-vendor')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Assign sector to vendor' })
-  async assignSectorToVendor(@Body() data: { vendorId: string; sectorId: string }) {
-    const user = await this.territoriesService.assignSectorToVendor(data);
+  async assignSectorToVendor(
+    @Body() data: { vendorId: string; sectorId: string },
+    @TenantId() tenantId: string
+  ) {
+    const user = await this.territoriesService.assignSectorToVendor(data, tenantId);
     return {
       success: true,
       data: user,
@@ -87,11 +88,9 @@ export class TerritoriesController {
   }
 
   @Get('vendors/:vendorId/outlets')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get vendor outlets' })
-  async getVendorOutlets(@Param('vendorId') vendorId: string) {
-    const result = await this.territoriesService.getVendorOutlets(vendorId);
+  async getVendorOutlets(@Param('vendorId') vendorId: string, @TenantId() tenantId: string) {
+    const result = await this.territoriesService.getVendorOutlets(vendorId, tenantId);
     return {
       success: true,
       data: result,
@@ -100,11 +99,9 @@ export class TerritoriesController {
   }
 
   @Get(':id')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get territory by ID' })
-  async findById(@Param('id') id: string) {
-    const territory = await this.territoriesService.findById(id);
+  async findById(@Param('id') id: string, @TenantId() tenantId: string) {
+    const territory = await this.territoriesService.findById(id, tenantId);
     return {
       success: true,
       data: territory,
@@ -113,11 +110,9 @@ export class TerritoriesController {
   }
 
   @Post()
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new territory' })
-  async create(@Body() data: any) {
-    const territory = await this.territoriesService.create(data);
+  async create(@Body() data: any, @TenantId() tenantId: string) {
+    const territory = await this.territoriesService.create(data, tenantId);
     return {
       success: true,
       data: territory,
@@ -126,11 +121,9 @@ export class TerritoriesController {
   }
 
   @Put(':id')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Update territory' })
-  async update(@Param('id') id: string, @Body() data: any) {
-    const territory = await this.territoriesService.update(id, data);
+  async update(@Param('id') id: string, @Body() data: any, @TenantId() tenantId: string) {
+    const territory = await this.territoriesService.update(id, data, tenantId);
     return {
       success: true,
       data: territory,
@@ -139,11 +132,9 @@ export class TerritoriesController {
   }
 
   @Delete(':id')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete territory' })
-  async delete(@Param('id') id: string) {
-    await this.territoriesService.delete(id);
+  async delete(@Param('id') id: string, @TenantId() tenantId: string) {
+    await this.territoriesService.delete(id, tenantId);
     return {
       success: true,
       message: 'Territory deleted successfully',
@@ -151,11 +142,9 @@ export class TerritoriesController {
   }
 
   @Get('users/managers/list')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all managers' })
-  async getManagers() {
-    const managers = await this.territoriesService.getManagers();
+  async getManagers(@TenantId() tenantId: string) {
+    const managers = await this.territoriesService.getManagers(tenantId);
     return {
       success: true,
       data: managers,
@@ -164,11 +153,9 @@ export class TerritoriesController {
   }
 
   @Get('admins/available')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get available admins' })
-  async getAvailableAdmins(@Query('excludeTerritoryId') excludeTerritoryId?: string) {
-    const admins = await this.territoriesService.getAvailableAdmins(excludeTerritoryId);
+  async getAvailableAdmins(@TenantId() tenantId: string, @Query('excludeTerritoryId') excludeTerritoryId?: string) {
+    const admins = await this.territoriesService.getAvailableAdmins(tenantId, excludeTerritoryId);
     return {
       success: true,
       data: admins,
@@ -177,11 +164,13 @@ export class TerritoriesController {
   }
 
   @Patch(':id/assign-admin')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Assign admin to territory' })
-  async assignAdmin(@Param('id') territoryId: string, @Body('adminId') adminId: string) {
-    const territory = await this.territoriesService.assignAdmin(territoryId, adminId);
+  async assignAdmin(
+    @Param('id') territoryId: string, 
+    @Body('adminId') adminId: string,
+    @TenantId() tenantId: string
+  ) {
+    const territory = await this.territoriesService.assignAdmin(territoryId, adminId, tenantId);
     return {
       success: true,
       data: territory,
@@ -190,11 +179,13 @@ export class TerritoriesController {
   }
 
   @Patch(':id/reassign-admin')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Reassign admin to territory' })
-  async reassignAdmin(@Param('id') territoryId: string, @Body('adminId') adminId: string) {
-    const territory = await this.territoriesService.reassignAdmin(territoryId, adminId);
+  async reassignAdmin(
+    @Param('id') territoryId: string, 
+    @Body('adminId') adminId: string,
+    @TenantId() tenantId: string
+  ) {
+    const territory = await this.territoriesService.reassignAdmin(territoryId, adminId, tenantId);
     return {
       success: true,
       data: territory,
@@ -203,11 +194,9 @@ export class TerritoriesController {
   }
 
   @Delete(':id/remove-admin')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Remove admin from territory' })
-  async removeAdmin(@Param('id') territoryId: string) {
-    const territory = await this.territoriesService.removeAdmin(territoryId);
+  async removeAdmin(@Param('id') territoryId: string, @TenantId() tenantId: string) {
+    const territory = await this.territoriesService.removeAdmin(territoryId, tenantId);
     return {
       success: true,
       data: territory,
@@ -216,11 +205,13 @@ export class TerritoriesController {
   }
 
   @Patch('sectors/:id/reassign-vendor')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Reassign vendor to sector' })
-  async reassignSectorVendor(@Param('id') sectorId: string, @Body('vendorId') vendorId: string) {
-    const territory = await this.territoriesService.reassignSectorVendor(sectorId, vendorId);
+  async reassignSectorVendor(
+    @Param('id') sectorId: string, 
+    @Body('vendorId') vendorId: string,
+    @TenantId() tenantId: string
+  ) {
+    const territory = await this.territoriesService.reassignSectorVendor(sectorId, vendorId, tenantId);
     return {
       success: true,
       data: territory,
@@ -229,11 +220,9 @@ export class TerritoriesController {
   }
 
   @Delete('sectors/:id/unassign-vendor')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Unassign vendor from sector' })
-  async unassignSectorVendor(@Param('id') sectorId: string) {
-    const territory = await this.territoriesService.unassignSectorVendor(sectorId);
+  async unassignSectorVendor(@Param('id') sectorId: string, @TenantId() tenantId: string) {
+    const territory = await this.territoriesService.unassignSectorVendor(sectorId, tenantId);
     return {
       success: true,
       data: territory,
@@ -242,11 +231,9 @@ export class TerritoriesController {
   }
 
   @Get('vendors/with-sectors')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all vendors with sectors' })
-  async getAllVendorsWithSectors() {
-    const vendors = await this.territoriesService.getAllVendorsWithSectors();
+  async getAllVendorsWithSectors(@TenantId() tenantId: string) {
+    const vendors = await this.territoriesService.getAllVendorsWithSectors(tenantId);
     return {
       success: true,
       data: vendors,
@@ -255,11 +242,9 @@ export class TerritoriesController {
   }
 
   @Get(':id/geo-info')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get territory geographic info' })
-  async getTerritoryGeoInfo(@Param('id') territoryId: string) {
-    const geoInfo = await this.territoriesService.getTerritoryGeoInfo(territoryId);
+  async getTerritoryGeoInfo(@Param('id') territoryId: string, @TenantId() tenantId: string) {
+    const geoInfo = await this.territoriesService.getTerritoryGeoInfo(territoryId, tenantId);
     return {
       success: true,
       data: geoInfo,
@@ -268,11 +253,12 @@ export class TerritoriesController {
   }
 
   @Post('sectors/remove-outlets')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Remove outlets from sector' })
-  async removeOutletsFromSector(@Body() data: { sectorId: string; outletIds: string[] }) {
-    const result = await this.territoriesService.removeOutletsFromSector(data);
+  async removeOutletsFromSector(
+    @Body() data: { sectorId: string; outletIds: string[] },
+    @TenantId() tenantId: string
+  ) {
+    const result = await this.territoriesService.removeOutletsFromSector(data, tenantId);
     return {
       success: true,
       data: result,
@@ -281,11 +267,12 @@ export class TerritoriesController {
   }
 
   @Post('vendors/assign-outlets')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Assign outlets to vendor' })
-  async assignOutletsToVendor(@Body() data: { vendorId: string; outletIds: string[] }) {
-    const result = await this.territoriesService.assignOutletsToVendor(data);
+  async assignOutletsToVendor(
+    @Body() data: { vendorId: string; outletIds: string[] },
+    @TenantId() tenantId: string
+  ) {
+    const result = await this.territoriesService.assignOutletsToVendor(data, tenantId);
     return {
       success: true,
       data: result,
@@ -294,11 +281,9 @@ export class TerritoriesController {
   }
 
   @Delete('vendors/:vendorId/sector')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Remove sector from vendor' })
-  async removeSectorFromVendor(@Param('vendorId') vendorId: string) {
-    const result = await this.territoriesService.removeSectorFromVendor(vendorId);
+  async removeSectorFromVendor(@Param('vendorId') vendorId: string, @TenantId() tenantId: string) {
+    const result = await this.territoriesService.removeSectorFromVendor(vendorId, tenantId);
     return {
       success: true,
       data: result,
@@ -307,11 +292,9 @@ export class TerritoriesController {
   }
 
   @Get('vendors/:vendorId/assigned-sector')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get vendor assigned sector' })
-  async getVendorAssignedSector(@Param('vendorId') vendorId: string) {
-    const sector = await this.territoriesService.getVendorAssignedSector(vendorId);
+  async getVendorAssignedSector(@Param('vendorId') vendorId: string, @TenantId() tenantId: string) {
+    const sector = await this.territoriesService.getVendorAssignedSector(vendorId, tenantId);
     return sector;
   }
 }

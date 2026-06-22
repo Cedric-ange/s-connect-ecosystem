@@ -5,13 +5,16 @@ import { PrismaService } from '../prisma/prisma.service';
 export class OutletsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(filters?: {
-    status?: string;
-    territoryId?: string;
-    channel?: string;
-    proposedBy?: string;
-  }) {
-    const where: any = {};
+  async findAll(
+    tenantId: string,
+    filters?: {
+      status?: string;
+      territoryId?: string;
+      channel?: string;
+      proposedBy?: string;
+    },
+  ) {
+    const where: any = { tenantId }; // 🎯 Filtre obligatoire global
 
     if (filters?.status) {
       where.status = filters.status;
@@ -54,13 +57,14 @@ export class OutletsService {
     });
   }
 
-  async getMyTerritoryOutlets(filters?: {
-    status?: string;
-    channel?: string;
-  }) {
-    // This will be called with the user from JWT
-    // For now, return all outlets
-    const where: any = {};
+  async getMyTerritoryOutlets(
+    tenantId: string,
+    filters?: {
+      status?: string;
+      channel?: string;
+    },
+  ) {
+    const where: any = { tenantId }; // 🎯 Isolation multi-tenant assurée
 
     if (filters?.status) {
       where.status = filters.status;
@@ -81,9 +85,10 @@ export class OutletsService {
     });
   }
 
-  async findById(id: string) {
-    const outlet = await this.prisma.outlet.findUnique({
-      where: { id },
+  async findById(id: string, tenantId: string) {
+    // Utilisez findFirst pour garantir que l'élément appartienne bien au bon tenant
+    const outlet = await this.prisma.outlet.findFirst({
+      where: { id, tenantId },
       include: {
         territory: true,
         proposer: {
@@ -106,28 +111,27 @@ export class OutletsService {
     });
 
     if (!outlet) {
-      throw new NotFoundException('Outlet not found');
+      throw new NotFoundException('Outlet not found within this tenant organization');
     }
 
     return outlet;
   }
 
-  async create(data: any) {
-    // Check if code exists
-    const existingCode = await this.prisma.outlet.findUnique({
-      where: { code: data.code },
+  async create(data: any, tenantId: string, userId: string) {
+    // Le code doit être unique au sein du même tenant
+    const existingCode = await this.prisma.outlet.findFirst({
+      where: { code: data.code, tenantId },
     });
 
     if (existingCode) {
-      throw new ConflictException('Outlet code already exists');
+      throw new ConflictException('Outlet code already exists for your company');
     }
-
-    // Set proposedBy from JWT if not provided
-    // For now, we'll use a default or provided value
 
     return this.prisma.outlet.create({
       data: {
         ...data,
+        tenantId, // 🎯 Ancre multi-tenant forcée
+        proposedBy: data.proposedBy || userId, // 👥 Proposer automatique si non défini
         status: data.status || 'PENDING',
       },
       include: {
@@ -137,18 +141,21 @@ export class OutletsService {
     });
   }
 
-  async update(id: string, data: any) {
-    const outlet = await this.findById(id);
+  async update(id: string, data: any, tenantId: string) {
+    const outlet = await this.findById(id, tenantId);
 
     if (data.code && data.code !== outlet.code) {
-      const existingCode = await this.prisma.outlet.findUnique({
-        where: { code: data.code },
+      const existingCode = await this.prisma.outlet.findFirst({
+        where: { code: data.code, tenantId },
       });
 
       if (existingCode) {
-        throw new ConflictException('Outlet code already exists');
+        throw new ConflictException('Outlet code already exists for your company');
       }
     }
+
+    // On évite d'altérer par mégarde le tenant lors d'une modification
+    delete data.tenantId;
 
     return this.prisma.outlet.update({
       where: { id },
@@ -161,8 +168,8 @@ export class OutletsService {
     });
   }
 
-  async approve(id: string, userId?: string) {
-    const outlet = await this.findById(id);
+  async approve(id: string, tenantId: string, userId: string) {
+    const outlet = await this.findById(id, tenantId);
 
     if (outlet.status !== 'PENDING') {
       throw new ConflictException('Outlet can only be approved when pending');
@@ -178,8 +185,8 @@ export class OutletsService {
     });
   }
 
-  async reject(id: string, reason?: string, userId?: string) {
-    const outlet = await this.findById(id);
+  async reject(id: string, reason: string | undefined, tenantId: string, userId: string) {
+    const outlet = await this.findById(id, tenantId);
 
     if (outlet.status !== 'PENDING') {
       throw new ConflictException('Outlet can only be rejected when pending');
@@ -196,16 +203,16 @@ export class OutletsService {
     });
   }
 
-  async delete(id: string) {
-    const outlet = await this.findById(id);
+  async delete(id: string, tenantId: string) {
+    await this.findById(id, tenantId);
 
-    // Check if outlet has orders or visits
+    // Vérifier les dépendances liées
     const ordersCount = await this.prisma.order.count({
-      where: { outletId: id },
+      where: { outletId: id, tenantId },
     });
 
     const visitsCount = await this.prisma.visit.count({
-      where: { outletId: id },
+      where: { outletId: id, tenantId },
     });
 
     if (ordersCount > 0 || visitsCount > 0) {
@@ -217,11 +224,14 @@ export class OutletsService {
     });
   }
 
-  async getStats(filters?: {
-    territoryId?: string;
-    proposedBy?: string;
-  }) {
-    const where: any = {};
+  async getStats(
+    tenantId: string,
+    filters?: {
+      territoryId?: string;
+      proposedBy?: string;
+    },
+  ) {
+    const where: any = { tenantId };
 
     if (filters?.territoryId) {
       where.territoryId = filters.territoryId;

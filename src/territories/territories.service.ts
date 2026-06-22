@@ -5,8 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 export class TerritoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(filters?: { level?: string; parentId?: string }) {
-    const where: any = {};
+  async findAll(tenantId: string, filters?: { level?: string; parentId?: string }) {
+    const where: any = { tenantId }; // 🎯 Isolation Multi-Tenant
     
     if (filters?.level) {
       where.level = filters.level;
@@ -26,8 +26,8 @@ export class TerritoriesService {
     });
   }
 
-  async findAllSectors(filters?: { level?: string }) {
-    const where: any = { level: 'SECTEUR' };
+  async findAllSectors(tenantId: string, filters?: { level?: string }) {
+    const where: any = { tenantId, level: 'SECTEUR' };
     
     if (filters?.level) {
       where.level = filters.level;
@@ -37,88 +37,88 @@ export class TerritoriesService {
       where,
       include: {
         parent: true,
-
         outlets: true,
       },
       orderBy: { name: 'asc' },
     });
   }
 
-  async findById(id: string) {
-    const territory = await this.prisma.territory.findUnique({
-      where: { id },
+  async findById(id: string, tenantId: string) {
+    const territory = await this.prisma.territory.findFirst({
+      where: { id, tenantId }, // 🎯 Vérification stricte
       include: {
         parent: true,
-
         children: true,
         outlets: true,
       },
     });
 
     if (!territory) {
-      throw new NotFoundException('Territory not found');
+      throw new NotFoundException('Territory not found within your organization');
     }
 
     return territory;
   }
 
-  async getSectorById(id: string) {
-    return this.findById(id);
+  async getSectorById(id: string, tenantId: string) {
+    return this.findById(id, tenantId);
   }
 
-  async create(data: any) {
-    // Check if code exists
-    const existing = await this.prisma.territory.findUnique({
-      where: { code: data.code },
+  async create(data: any, tenantId: string) {
+    // Le code doit être unique au sein du même tenant
+    const existing = await this.prisma.territory.findFirst({
+      where: { code: data.code, tenantId },
     });
 
     if (existing) {
-      throw new ConflictException('Territory code already exists');
+      throw new ConflictException('Territory code already exists for your company');
     }
 
     return this.prisma.territory.create({
-      data,
+      data: {
+        ...data,
+        tenantId, // 🎯 Ancre multi-tenant forcée
+      },
       include: {
         parent: true,
-
       },
     });
   }
 
-  async createSector(data: any) {
+  async createSector(data: any, tenantId: string) {
     data.level = 'SECTEUR';
-    return this.create(data);
+    return this.create(data, tenantId);
   }
 
-  async update(id: string, data: any) {
-    const territory = await this.findById(id);
+  async update(id: string, data: any, tenantId: string) {
+    const territory = await this.findById(id, tenantId);
 
     if (data.code && data.code !== territory.code) {
-      const existing = await this.prisma.territory.findUnique({
-        where: { code: data.code },
+      const existing = await this.prisma.territory.findFirst({
+        where: { code: data.code, tenantId },
       });
 
       if (existing) {
-        throw new ConflictException('Territory code already exists');
+        throw new ConflictException('Territory code already exists for your company');
       }
     }
+
+    delete data.tenantId;
 
     return this.prisma.territory.update({
       where: { id },
       data,
       include: {
         parent: true,
-
       },
     });
   }
 
-  async delete(id: string) {
-    const territory = await this.findById(id);
+  async delete(id: string, tenantId: string) {
+    await this.findById(id, tenantId);
 
-    // Check if territory has children
     const childrenCount = await this.prisma.territory.count({
-      where: { parentId: id },
+      where: { parentId: id, tenantId },
     });
 
     if (childrenCount > 0) {
@@ -130,36 +130,35 @@ export class TerritoriesService {
     });
   }
 
-  async assignOutletsToSector(data: { sectorId: string; outletIds: string[] }) {
-    const sector = await this.getSectorById(data.sectorId);
+  async assignOutletsToSector(data: { sectorId: string; outletIds: string[] }, tenantId: string) {
+    await this.getSectorById(data.sectorId, tenantId);
 
     const outlets = await this.prisma.outlet.findMany({
-      where: { id: { in: data.outletIds } },
+      where: { id: { in: data.outletIds }, tenantId },
     });
 
     if (outlets.length !== data.outletIds.length) {
-      throw new NotFoundException('Some outlets not found');
+      throw new NotFoundException('Some outlets were not found in your organization');
     }
 
-    // Update all outlets with the sector ID
     await this.prisma.outlet.updateMany({
-      where: { id: { in: data.outletIds } },
+      where: { id: { in: data.outletIds }, tenantId },
       data: { sectorId: data.sectorId },
     });
 
-    return this.getSectorById(data.sectorId);
+    return this.getSectorById(data.sectorId, tenantId);
   }
 
-  async assignSectorToVendor(data: { vendorId: string; sectorId: string }) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: data.vendorId },
+  async assignSectorToVendor(data: { vendorId: string; sectorId: string }, tenantId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: data.vendorId, tenantId },
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('User not found in your company context');
     }
 
-    const sector = await this.getSectorById(data.sectorId);
+    const sector = await this.getSectorById(data.sectorId, tenantId);
 
     return this.prisma.user.update({
       where: { id: data.vendorId },
@@ -170,24 +169,24 @@ export class TerritoriesService {
     });
   }
 
-  async getVendorOutlets(vendorId: string) {
-    const vendor = await this.prisma.user.findUnique({
-      where: { id: vendorId },
+  async getVendorOutlets(vendorId: string, tenantId: string) {
+    const vendor = await this.prisma.user.findFirst({
+      where: { id: vendorId, tenantId },
       include: {
         manager: true,
       },
     });
 
     if (!vendor) {
-      throw new NotFoundException('Vendor not found');
+      throw new NotFoundException('Vendor not found in your company context');
     }
 
-    // Récupérer le secteur assigné si assignedSectorId existe
-    let sector: any = null; // Corrigé
+    let sector: any = null;
     let outlets = [];
+
     if (vendor.assignedSectorId) {
-      sector = await this.prisma.territory.findUnique({
-        where: { id: vendor.assignedSectorId },
+      sector = await this.prisma.territory.findFirst({
+        where: { id: vendor.assignedSectorId, tenantId },
         include: {
           outlets: true,
         },
@@ -208,10 +207,11 @@ export class TerritoriesService {
     };
   }
 
-  async getManagers() {
+  async getManagers(tenantId: string) {
     return this.prisma.user.findMany({
       where: {
-        role: { in: ['SUP', 'ADMIN'] },
+        tenantId,
+        role: { in: ['MANAGER', 'ADMIN'] },
         isActive: true,
       },
       select: {
@@ -226,8 +226,9 @@ export class TerritoriesService {
     });
   }
 
-  async getAvailableAdmins(excludeTerritoryId?: string) {
+  async getAvailableAdmins(tenantId: string, excludeTerritoryId?: string) {
     const where: any = {
+      tenantId,
       role: 'ADMIN',
       isActive: true,
     };
@@ -248,14 +249,15 @@ export class TerritoriesService {
     });
   }
 
-  async assignAdmin(territoryId: string, adminId: string) {
-    const territory = await this.findById(territoryId);
-    const admin = await this.prisma.user.findUnique({
-      where: { id: adminId },
+  async assignAdmin(territoryId: string, adminId: string, tenantId: string) {
+    await this.findById(territoryId, tenantId);
+    
+    const admin = await this.prisma.user.findFirst({
+      where: { id: adminId, tenantId, role: 'ADMIN' },
     });
 
-    if (!admin || admin.role !== 'ADMIN') {
-      throw new NotFoundException('Admin not found');
+    if (!admin) {
+      throw new NotFoundException('Admin user not found in your company context');
     }
 
     return this.prisma.territory.update({
@@ -264,40 +266,37 @@ export class TerritoriesService {
     });
   }
 
-  async reassignAdmin(territoryId: string, adminId: string) {
-    return this.assignAdmin(territoryId, adminId);
+  async reassignAdmin(territoryId: string, adminId: string, tenantId: string) {
+    return this.assignAdmin(territoryId, adminId, tenantId);
   }
 
-  async removeAdmin(territoryId: string) {
+  async removeAdmin(territoryId: string, tenantId: string) {
+    await this.findById(territoryId, tenantId);
     return this.prisma.territory.update({
       where: { id: territoryId },
       data: { adminId: null },
     });
   }
 
-  async reassignSectorVendor(sectorId: string, vendorId: string) {
-    return this.assignSectorToVendor({ vendorId, sectorId });
+  async reassignSectorVendor(sectorId: string, vendorId: string, tenantId: string) {
+    return this.assignSectorToVendor({ vendorId, sectorId }, tenantId);
   }
 
-  async unassignSectorVendor(sectorId: string) {
-    const sector = await this.getSectorById(sectorId);
+  async unassignSectorVendor(sectorId: string, tenantId: string) {
+    const sector = await this.getSectorById(sectorId, tenantId);
 
-    if (!sector) {
-      throw new NotFoundException('Sector not found');
-    }
-
-    // Find all vendors assigned to this sector and unassign them
     await this.prisma.user.updateMany({
-      where: { assignedSectorId: sectorId },
+      where: { assignedSectorId: sectorId, tenantId },
       data: { assignedSectorId: null },
     });
 
     return sector;
   }
 
-  async getAllVendorsWithSectors() {
+  async getAllVendorsWithSectors(tenantId: string) {
     const vendors = await this.prisma.user.findMany({
       where: {
+        tenantId,
         role: 'REP',
         isActive: true,
       },
@@ -306,13 +305,12 @@ export class TerritoriesService {
       },
     });
 
-    // Pour chaque vendor, récupérer son secteur si assignedSectorId existe
-    const vendorsWithSectors = await Promise.all(
+    return Promise.all(
       vendors.map(async (vendor) => {
         let assignedSector: any = null;
         if (vendor.assignedSectorId) {
-          assignedSector = await this.prisma.territory.findUnique({
-            where: { id: vendor.assignedSectorId },
+          assignedSector = await this.prisma.territory.findFirst({
+            where: { id: vendor.assignedSectorId, tenantId },
             include: {
               outlets: true,
             },
@@ -325,29 +323,38 @@ export class TerritoriesService {
         };
       })
     );
-
-    return vendorsWithSectors;
   }
 
-  async getTerritoryGeoInfo(territoryId: string) {
-    const territory = await this.findById(territoryId);
+  async getTerritoryGeoInfo(territoryId: string, tenantId: string) {
+    const territory = await this.findById(territoryId, tenantId);
+
+    // Extraction sécurisée si ce sont des chaînes stockées sous format JSON ou texte
+    const parseGeoField = (field: string | null) => {
+      if (!field) return [];
+      try {
+        return JSON.parse(field);
+      } catch {
+        return field.split(',').map(s => s.trim());
+      }
+    };
 
     return {
-      regions: territory.regions || [],
-      communes: territory.communes || [],
-      villes: territory.villes || [],
-      quartiers: territory.quartiers || [],
-      codesPostaux: territory.codesPostaux || [],
+      regions: parseGeoField(territory.regions),
+      communes: parseGeoField(territory.communes),
+      villes: parseGeoField(territory.villes),
+      quartiers: parseGeoField(territory.quartiers),
+      codesPostaux: parseGeoField(territory.codesPostaux),
     };
   }
 
-  async removeOutletsFromSector(data: { sectorId: string; outletIds: string[] }) {
-    const sector = await this.getSectorById(data.sectorId);
+  async removeOutletsFromSector(data: { sectorId: string; outletIds: string[] }, tenantId: string) {
+    await this.getSectorById(data.sectorId, tenantId);
 
     await this.prisma.outlet.updateMany({
       where: {
         id: { in: data.outletIds },
         sectorId: data.sectorId,
+        tenantId,
       },
       data: { sectorId: null },
     });
@@ -359,31 +366,29 @@ export class TerritoriesService {
     };
   }
 
-  async assignOutletsToVendor(data: { vendorId: string; outletIds: string[] }) {
-    const vendor = await this.prisma.user.findUnique({
-      where: { id: data.vendorId },
+  async assignOutletsToVendor(data: { vendorId: string; outletIds: string[] }, tenantId: string) {
+    const vendor = await this.prisma.user.findFirst({
+      where: { id: data.vendorId, tenantId },
     });
 
     if (!vendor || !vendor.assignedSectorId) {
-      throw new NotFoundException('Vendor or sector not found');
+      throw new NotFoundException('Vendor or sector association missing');
     }
 
     return this.assignOutletsToSector({
       sectorId: vendor.assignedSectorId,
       outletIds: data.outletIds,
-    });
+    }, tenantId);
   }
 
-  async removeSectorFromVendor(vendorId: string) {
-    const vendor = await this.prisma.user.findUnique({
-      where: { id: vendorId },
+  async removeSectorFromVendor(vendorId: string, tenantId: string) {
+    const vendor = await this.prisma.user.findFirst({
+      where: { id: vendorId, tenantId },
     });
 
     if (!vendor) {
       throw new NotFoundException('Vendor not found');
     }
-
-    const sectorId = vendor.assignedSectorId;
 
     await this.prisma.user.update({
       where: { id: vendorId },
@@ -392,35 +397,28 @@ export class TerritoriesService {
 
     return {
       success: true,
-      message: 'Vendor removed from sector',
+      message: 'Vendor removed from sector mapping',
     };
   }
 
-  async getVendorAssignedSector(vendorId: string) {
-    const vendor = await this.prisma.user.findUnique({
-      where: { id: vendorId },
+  async getVendorAssignedSector(vendorId: string, tenantId: string) {
+    const vendor = await this.prisma.user.findFirst({
+      where: { id: vendorId, tenantId },
       select: {
         assignedSectorId: true,
       },
     });
 
-    if (!vendor) {
-      throw new NotFoundException('Vendor not found');
-    }
-
-    if (!vendor.assignedSectorId) {
+    if (!vendor || !vendor.assignedSectorId) {
       return null;
     }
 
-    // Récupérer le secteur avec ses détails
-    const sector = await this.prisma.territory.findUnique({
-      where: { id: vendor.assignedSectorId },
+    return this.prisma.territory.findFirst({
+      where: { id: vendor.assignedSectorId, tenantId },
       include: {
         parent: true,
         outlets: true,
       },
     });
-
-    return sector;
   }
 }

@@ -7,43 +7,54 @@ export class OrderIntelligenceService {
 
   constructor(private readonly httpService: HttpService) {}
 
-  // Prédire la quantité optimale de commande
-async predictOrder(data: { outletId: string; historicalData: any }) {
+  // Prédire la quantité optimale de commande cloisonnée par Tenant
+  async predictOrder(data: { outletId: string; historicalData: any }, tenantId: string) {
     try {
-      const response = await this.httpService.post(`${this.mlServiceUrl}/api/orders/predict`, data).toPromise();
-      return response?.data; // Corrigé
+      const response = await this.httpService.post(`${this.mlServiceUrl}/api/orders/predict`, {
+        ...data,
+        tenantId, // 🎯 Poussé au service ML pour cloisonner les modèles d'entraînement
+      }).toPromise();
+      return response?.data;
     } catch (error) {
-      console.log('ML Service non disponible, utilisation de simulation');
+      console.log(`[Tenant ${tenantId}] ML Service non disponible, simulation de prédiction lancée`);
       return this.simulatePrediction(data);
     }
   }
 
-  async optimizeOrder(data: any) {
+  async optimizeOrder(data: any, tenantId: string) {
     try {
-      const response = await this.httpService.post(`${this.mlServiceUrl}/api/orders/optimize`, data).toPromise();
-      return response?.data; // Corrigé
+      const response = await this.httpService.post(`${this.mlServiceUrl}/api/orders/optimize`, {
+        ...data,
+        tenantId,
+      }).toPromise();
+      return response?.data;
     } catch (error) {
-      console.log('ML Service non disponible, utilisation de simulation');
+      console.log(`[Tenant ${tenantId}] ML Service non disponible, simulation d'optimisation lancée`);
       return this.simulateOptimization(data);
     }
   }
 
-  async getRecommendations(outletId: string) {
+  async getRecommendations(outletId: string, tenantId: string) {
     try {
-      const response = await this.httpService.get(`${this.mlServiceUrl}/api/orders/recommendations/${outletId}`).toPromise();
-      return response?.data; // Corrigé
+      const response = await this.httpService.get(`${this.mlServiceUrl}/api/orders/recommendations/${outletId}`, {
+        headers: { 'X-Tenant-ID': tenantId }
+      }).toPromise();
+      return response?.data;
     } catch (error) {
-      console.log('ML Service non disponible, utilisation de simulation');
+      console.log(`[Tenant ${tenantId}] ML Service non disponible, simulation de recommandations lancée`);
       return this.simulateRecommendations(outletId);
     }
   }
 
-  async detectAnomalies(data: any) {
+  async detectAnomalies(data: any, tenantId: string) {
     try {
-      const response = await this.httpService.post(`${this.mlServiceUrl}/api/orders/anomalies`, data).toPromise();
-      return response?.data; // Corrigé
+      const response = await this.httpService.post(`${this.mlServiceUrl}/api/orders/anomalies`, {
+        ...data,
+        tenantId,
+      }).toPromise();
+      return response?.data;
     } catch (error) {
-      console.log('ML Service non disponible, utilisation de simulation');
+      console.log(`[Tenant ${tenantId}] ML Service non disponible, simulation de détection d'anomalies`);
       return this.simulateAnomalies(data);
     }
   }
@@ -51,9 +62,9 @@ async predictOrder(data: { outletId: string; historicalData: any }) {
   // Simulation de prédiction (fallback)
   private simulatePrediction(data: any) {
     const { historicalData } = data;
-    const baseQty = historicalData.avgOrderQty || 50;
-    const frequencyFactor = historicalData.orderFrequency > 5 ? 1.2 : 0.9;
-    const recencyFactor = historicalData.lastOrderDays < 7 ? 1.1 : 0.95;
+    const baseQty = historicalData?.avgOrderQty || 50;
+    const frequencyFactor = historicalData?.orderFrequency > 5 ? 1.2 : 0.9;
+    const recencyFactor = historicalData?.lastOrderDays < 7 ? 1.1 : 0.95;
     
     return {
       recommendedQuantity: Math.round(baseQty * frequencyFactor * recencyFactor),
@@ -70,6 +81,8 @@ async predictOrder(data: { outletId: string; historicalData: any }) {
   // Simulation d'optimisation (fallback)
   private simulateOptimization(data: any) {
     const { currentOrder } = data;
+    if (!currentOrder) return { optimizedOrder: [], totalSavings: 0, efficiency: 1 };
+    
     return {
       optimizedOrder: currentOrder.map((item: any) => ({
         ...item,
@@ -110,6 +123,8 @@ async predictOrder(data: { outletId: string; historicalData: any }) {
   // Simulation de détection d'anomalies (fallback)
   private simulateAnomalies(data: any) {
     const { orders } = data;
+    if (!orders) return { totalOrders: 0, anomaliesDetected: 0, anomalyRate: 0, anomalies: [] };
+    
     const anomalies = orders.filter((order: any) => order.quantity > 100 || order.quantity < 5);
     
     return {

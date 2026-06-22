@@ -1,27 +1,37 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrderIntelligenceService } from './order-intelligence.service';
+import { TenantId } from '../common/decorators/tenant-id.decorator';
 
+@ApiTags('Order Intelligence')
 @Controller('order-intelligence')
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
 export class OrderIntelligenceController {
   constructor(private readonly orderIntelligenceService: OrderIntelligenceService) {}
 
   @Post('predict')
-  async predict(@Body() data: any) {
-    return this.orderIntelligenceService.predictOrder(data);
+  @ApiOperation({ summary: 'Predict optimal order quantities' })
+  async predict(@TenantId() tenantId: string, @Body() data: any) {
+    return this.orderIntelligenceService.predictOrder(data, tenantId);
   }
 
   @Post('optimize')
-  async optimize(@Body() data: any) {
-    return this.orderIntelligenceService.optimizeOrder(data);
+  @ApiOperation({ summary: 'Optimize current order lines' })
+  async optimize(@TenantId() tenantId: string, @Body() data: any) {
+    return this.orderIntelligenceService.optimizeOrder(data, tenantId);
   }
 
   @Get('recommendations/:outletId')
-  async getRecommendations(@Param('outletId') outletId: string) {
-    return this.orderIntelligenceService.getRecommendations(outletId);
+  @ApiOperation({ summary: 'Get product recommendations for an outlet' })
+  async getRecommendations(@Param('outletId') outletId: string, @TenantId() tenantId: string) {
+    return this.orderIntelligenceService.getRecommendations(outletId, tenantId);
   }
 
   @Post('anomalies')
-  async detectAnomalies(@Body() data: any) {
-    return this.orderIntelligenceService.detectAnomalies(data);
+  @ApiOperation({ summary: 'Detect order volume anomalies' })
+  async detectAnomalies(@TenantId() tenantId: string, @Body() data: any) {
+    return this.orderIntelligenceService.detectAnomalies(data, tenantId);
   }
 }
