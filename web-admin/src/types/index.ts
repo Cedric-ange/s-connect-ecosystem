@@ -101,6 +101,7 @@ export interface DashboardMetrics {
 export interface AuthResponse {
   access_token: string
   refresh_token: string
+  tenantId?: string
   user: User
 }
 

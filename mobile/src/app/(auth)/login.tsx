@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   View,
   Text,
@@ -11,50 +11,17 @@ import {
   Alert,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { authService } from '../../services/auth.service'
-import { api } from '../../services/api'
 import { Colors } from '../../constants/theme'
-
-interface Tenant {
-  id: string
-  companyName: string
-  industry: string
-}
 
 export default function LoginScreen() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [tenantId, setTenantId] = useState('')
-  const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  useEffect(() => {
-    loadTenants()
-  }, [])
-
-  async function loadTenants() {
-    try {
-      const storedTenant = await AsyncStorage.getItem('tenantId')
-      if (storedTenant) setTenantId(storedTenant)
-
-      const data = await api.get<{ success: boolean; tenants: Tenant[] }>('/tenants/public/list')
-      setTenants(data.tenants)
-      if (!storedTenant && data.tenants.length === 1) {
-        setTenantId(data.tenants[0].id)
-      }
-    } catch {
-      // API unavailable, allow manual tenant ID input
-    }
-  }
-
   async function handleLogin() {
-    if (!tenantId.trim()) {
-      Alert.alert('Erreur', 'Veuillez sélectionner votre organisation')
-      return
-    }
     if (!email.trim() || !password.trim()) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs')
       return
@@ -62,7 +29,6 @@ export default function LoginScreen() {
 
     setLoading(true)
     try {
-      await AsyncStorage.setItem('tenantId', tenantId)
       await authService.login(email.trim(), password)
       router.replace('/(tabs)')
     } catch {
@@ -84,44 +50,6 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
-          {/* Organization */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Organisation</Text>
-            {tenants.length > 0 ? (
-              <View style={styles.tenantList}>
-                {tenants.map((tenant) => (
-                  <TouchableOpacity
-                    key={tenant.id}
-                    style={[
-                      styles.tenantOption,
-                      tenantId === tenant.id && styles.tenantOptionActive,
-                    ]}
-                    onPress={() => setTenantId(tenant.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.tenantOptionText,
-                        tenantId === tenant.id && styles.tenantOptionTextActive,
-                      ]}
-                    >
-                      {tenant.companyName}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <TextInput
-                style={styles.input}
-                placeholder="ID Organisation (UUID)"
-                placeholderTextColor={Colors.textSecondary}
-                value={tenantId}
-                onChangeText={setTenantId}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            )}
-          </View>
-
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email</Text>
             <TextInput
@@ -217,29 +145,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: Colors.text,
-  },
-  tenantList: {
-    gap: 8,
-  },
-  tenantOption: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  tenantOptionActive: {
-    borderColor: Colors.primary,
-    backgroundColor: '#EBF8FF',
-  },
-  tenantOptionText: {
-    fontSize: 15,
-    color: Colors.text,
-  },
-  tenantOptionTextActive: {
-    color: Colors.primary,
-    fontWeight: '600',
   },
   passwordRow: {
     flexDirection: 'row',

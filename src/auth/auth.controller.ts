@@ -22,6 +22,12 @@ export class AuthController {
     return this.authService.login(loginDto, tenantId);
   }
 
+  @Post('login-auto')
+  @ApiOperation({ summary: 'Login user — auto-detect tenant from email' })
+  async loginAuto(@Body() loginDto: LoginDto) {
+    return this.authService.loginAuto(loginDto);
+  }
+
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token' })
   async refresh(@Body('refreshToken') refreshToken: string) {

@@ -14,19 +14,19 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => user.value?.role === 'COMPANY_ADMIN' || user.value?.role === 'ADMIN' || user.value?.role === 'SUP')
   const isSup = computed(() => user.value?.role === 'SUP')
 
-  async function login(email: string, password: string, selectedTenantId?: string) {
+  async function login(email: string, password: string) {
     loading.value = true
     try {
-      if (selectedTenantId) {
-        tenantId.value = selectedTenantId
-        localStorage.setItem('tenantId', selectedTenantId)
-      }
       const response = await authService.login(email, password)
       token.value = response.access_token
       refreshToken.value = response.refresh_token
       user.value = response.user
       localStorage.setItem('token', response.access_token)
       localStorage.setItem('refreshToken', response.refresh_token)
+      if (response.tenantId) {
+        tenantId.value = response.tenantId
+        localStorage.setItem('tenantId', response.tenantId)
+      }
     } finally {
       loading.value = false
     }

@@ -33,6 +33,50 @@ export class AuthService {
     return null;
   }
 
+  async loginAuto(loginDto: LoginDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: loginDto.email },
+    });
+
+    if (!user || !(await bcrypt.compare(loginDto.password, user.password))) {
+      throw new UnauthorizedException('Identifiants incorrects.');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Ce compte est désactivé.');
+    }
+
+    if (user.twoFactorEnabled) {
+      if (!loginDto.twoFactorCode) {
+        return {
+          requiresTwoFactor: true,
+          message: 'Two-factor authentication required',
+        };
+      }
+      const isValid = this.verifyTwoFactor(user.twoFactorSecret, loginDto.twoFactorCode);
+      if (!isValid) {
+        throw new UnauthorizedException('Invalid two-factor code');
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() },
+    });
+
+    const { password: _, ...userWithoutPassword } = user;
+    const tokens = await this.generateTokens(userWithoutPassword);
+
+    return {
+      success: true,
+      message: 'Login successful',
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      tenantId: user.tenantId,
+      user: this.sanitizeUser(user),
+    };
+  }
+
   async login(loginDto: LoginDto, tenantId: string) {
     const user = await this.validateUser(loginDto.email, loginDto.password, tenantId);
     

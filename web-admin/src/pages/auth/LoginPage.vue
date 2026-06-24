@@ -1,51 +1,20 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import api from '@/services/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 const email = ref('')
 const password = ref('')
-const tenantId = ref(localStorage.getItem('tenantId') || '')
 const error = ref('')
 const showPassword = ref(false)
 
-interface Tenant {
-  id: string
-  companyName: string
-  industry: string
-}
-
-const tenants = ref<Tenant[]>([])
-const tenantsLoading = ref(false)
-
-onMounted(async () => {
-  tenantsLoading.value = true
-  try {
-    const { data } = await api.get<{ success: boolean; tenants: Tenant[] }>('/tenants/public/list')
-    tenants.value = data.tenants
-    if (!tenantId.value && data.tenants.length === 1) {
-      tenantId.value = data.tenants[0].id
-    }
-  } catch {
-    // Fallback: allow manual tenant ID input
-  } finally {
-    tenantsLoading.value = false
-  }
-})
-
 async function handleLogin() {
   error.value = ''
-  if (!tenantId.value) {
-    error.value = 'Veuillez sélectionner votre organisation'
-    return
-  }
   try {
-    localStorage.setItem('tenantId', tenantId.value)
-    await authStore.login(email.value, password.value, tenantId.value)
+    await authStore.login(email.value, password.value)
     router.push('/dashboard')
   } catch (e: any) {
     error.value = e.response?.data?.message || 'Identifiants incorrects'
@@ -95,29 +64,6 @@ async function handleLogin() {
           </div>
 
           <form class="space-y-4" @submit.prevent="handleLogin">
-            <!-- Organization -->
-            <div>
-              <select
-                v-if="tenants.length > 0"
-                v-model="tenantId"
-                required
-                class="w-full rounded-md border border-border bg-surface px-4 py-3 text-base text-text-primary outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
-              >
-                <option value="" disabled>Organisation</option>
-                <option v-for="tenant in tenants" :key="tenant.id" :value="tenant.id">
-                  {{ tenant.companyName }}
-                </option>
-              </select>
-              <input
-                v-else
-                v-model="tenantId"
-                type="text"
-                required
-                placeholder="ID Organisation (UUID)"
-                class="w-full rounded-md border border-border bg-surface px-4 py-3 text-base text-text-primary outline-none transition-colors placeholder:text-text-secondary focus:border-primary focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
             <!-- Email -->
             <input
               v-model="email"

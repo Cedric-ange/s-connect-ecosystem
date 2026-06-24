@@ -5,15 +5,19 @@ import type { User } from '../types'
 interface AuthResponse {
   access_token: string
   refresh_token: string
+  tenantId?: string
   user: User
 }
 
 export const authService = {
   async login(email: string, password: string): Promise<AuthResponse> {
-    const data = await api.post<AuthResponse>('/auth/login', { email, password })
+    const data = await api.post<AuthResponse>('/auth/login-auto', { email, password })
     await AsyncStorage.setItem('token', data.access_token)
     await AsyncStorage.setItem('refreshToken', data.refresh_token)
     await AsyncStorage.setItem('user', JSON.stringify(data.user))
+    if (data.tenantId) {
+      await AsyncStorage.setItem('tenantId', data.tenantId)
+    }
     return data
   },
 
