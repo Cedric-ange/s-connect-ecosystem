@@ -106,3 +106,5 @@ Le schéma Prisma complet est défini dans `prisma/schema.prisma` avec :
 ## 📞 Support
 
 Pour toute question sur le backend, consultez la documentation Swagger ou les fichiers de service dans `src/`.
+
+
