@@ -53,12 +53,17 @@ The backend at `backendsfa-gdqw.onrender.com` might be down or have CORS issues.
 
 ## Key Test Areas
 
-### 1. Login Page (Meta Split-Screen)
+### 1. Login Page (Meta Split-Screen — Auto-Tenant)
 - URL: `/login`
 - Two side-by-side panels: left white branding, right gray (#F0F2F5) form
 - Blue circle "S" logo, Facebook blue (#1877F2) button
-- Organization, Email, Password fields with eye toggle
+- **Only 2 fields: Email + Password** (Tenant ID / Organization field was removed)
+- Eye toggle on password field
 - "Mot de passe oublie?" link, "Creer un nouveau compte" button
+- Form submits to `POST /api/auth/login-auto` (NOT `/auth/login`)
+- No `X-Tenant-ID` header sent on login request
+- Error message on failure: "Identifiants incorrects" (no tenant validation error)
+- Auth store `login(email, password)` receives `tenantId` from server response
 
 ### 2. Dashboard (Meta Accueil)
 - White sidebar with blue logo, account selector, 10 nav items
