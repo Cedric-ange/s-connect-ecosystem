@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100">
+  <defs>
+    <linearGradient id="sgrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1877F2"/>
+      <stop offset="100%" style="stop-color:#0D5BBF"/>
+    </linearGradient>
+  </defs>
+  <!-- Icon: S letter stylized with chart line -->
+  <circle cx="42" cy="50" r="38" fill="url(#sgrad)"/>
+  <text x="26" y="68" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="900" fill="white">S</text>
+  <path d="M48 58 L54 45 L60 50 L68 30" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+  <circle cx="68" cy="30" r="3" fill="white" opacity="0.8"/>
+  <!-- Text -->
+  <text x="95" y="62" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700" fill="#1B2A3B">Sales</text>
+  <text x="206" y="62" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700" fill="#1877F2">Connect</text>
+</svg>

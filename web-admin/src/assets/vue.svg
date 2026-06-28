@@ -1,1 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="37.07" height="36" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 198"><path fill="#41B883" d="M204.8 0H256L128 220.8L0 0h97.92L128 51.2L157.44 0h47.36Z"></path><path fill="#41B883" d="m0 0l128 220.8L256 0h-51.2L128 132.48L50.56 0H0Z"></path><path fill="#35495E" d="M50.56 0L128 133.12L204.8 0h-47.36L128 51.2L97.92 0H50.56Z"></path></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 100">
+  <defs>
+    <linearGradient id="fbgrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1877F2"/>
+      <stop offset="100%" style="stop-color:#0D5BBF"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="4" y="12" width="76" height="76" rx="22" fill="url(#fbgrad)"/>
+  <text x="46" y="90" font-family="Arial, Helvetica, sans-serif" font-size="76" font-weight="900" fill="white" text-anchor="middle">S</text>
+  
+  <path d="M56 42 L62 32 L68 36 L74 22" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  <circle cx="74" cy="22" r="3.5" fill="white" opacity="0.85"/>
+
+  <text x="95" y="64" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700" fill="#1B2A3B">Sales</text>
+  <text x="206" y="64" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="700" fill="#1877F2">Connect</text>
+</svg>

@@ -50,3 +50,4 @@ lerna-debug.log*
 prisma/dev.db
 prisma/dev.db-*
 .vercel
+.env*
