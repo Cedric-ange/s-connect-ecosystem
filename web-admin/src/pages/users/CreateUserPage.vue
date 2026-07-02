@@ -7,18 +7,24 @@ const router = useRouter()
 const loading = ref(false)
 const error = ref('')
 
+// Alignement des rôles par défaut sur le modèle de données de la base
 const form = ref({
   firstName: '',
   lastName: '',
   email: '',
   phone: '',
   password: '',
-  role: 'REP' as 'REP' | 'ADMIN' | 'SUP',
+  role: 'VAN_SELLER' as any, // 🎯 Changé ici : "as any" au lieu de la liste de chaînes de caractères
+  matricule: '', // Initialisé à vide pour la préparation
 })
 
 async function handleSubmit() {
   loading.value = true
   error.value = ''
+  
+  // 🎯 Génération automatique d'un matricule unique basé sur le temps (Ex: MAT-2026-1719624855)
+  form.value.matricule = 'MAT-2026-' + Date.now();
+
   try {
     await usersService.create(form.value)
     router.push('/users')
@@ -72,9 +78,9 @@ async function handleSubmit() {
         <div>
           <label class="mb-1 block text-sm font-medium text-gray-700">Rôle</label>
           <select v-model="form.role" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none">
-            <option value="REP">REP (Commercial terrain)</option>
-            <option value="ADMIN">ADMIN (Responsable zone)</option>
-            <option value="SUP">SUP (Superviseur global)</option>
+            <option value="VAN_SELLER">REP (Commercial terrain)</option>
+            <option value="COMPANY_ADMIN">ADMIN (Responsable zone)</option>
+            <option value="COMPANY_SUPERVISOR">SUP (Superviseur global)</option>
           </select>
         </div>
 

@@ -30,12 +30,21 @@ const filteredUsers = () => {
   })
 }
 
+// Fonction corrigée et élargie pour englober les rôles réels de Supabase
 function getRoleBadgeClass(role: string) {
   switch (role) {
-    case 'SUP': return 'bg-purple-100 text-purple-700'
-    case 'ADMIN': return 'bg-primary/10 text-primary'
-    case 'REP': return 'bg-secondary/10 text-secondary'
-    default: return 'bg-gray-100 text-gray-700'
+    case 'SUP':
+    case 'COMPANY_SUPERVISOR': 
+      return 'bg-purple-100 text-purple-700'
+    case 'ADMIN':
+    case 'COMPANY_ADMIN':
+    case 'SALESCONNECTED_ADMIN': 
+      return 'bg-primary/10 text-primary'
+    case 'REP':
+    case 'VAN_SELLER': 
+      return 'bg-secondary/10 text-secondary'
+    default: 
+      return 'bg-gray-100 text-gray-700'
   }
 }
 </script>
@@ -55,7 +64,6 @@ function getRoleBadgeClass(role: string) {
       </button>
     </div>
 
-    <!-- Filters -->
     <div class="mb-4 flex gap-3">
       <input
         v-model="search"
@@ -68,13 +76,12 @@ function getRoleBadgeClass(role: string) {
         class="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-primary focus:outline-none"
       >
         <option value="">Tous les rôles</option>
-        <option value="SUP">SUP</option>
-        <option value="ADMIN">ADMIN</option>
-        <option value="REP">REP</option>
+        <option value="COMPANY_SUPERVISOR">SUP (Superviseur)</option>
+        <option value="COMPANY_ADMIN">ADMIN (Administrateur)</option>
+        <option value="VAN_SELLER">REP (Commercial)</option>
       </select>
     </div>
 
-    <!-- Table -->
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <div v-if="loading" class="p-8 text-center text-gray-400">Chargement...</div>
       <table v-else class="w-full">

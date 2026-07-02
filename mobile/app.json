@@ -21,6 +21,10 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.salesconnected.app"
@@ -51,6 +55,12 @@
         "projectId": "cce01c2f-062f-4bbe-99bb-dbcf0d6bc5ce"
       }
     },
-    "owner": "sales-connected"
+    "owner": "sales-connected",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/cce01c2f-062f-4bbe-99bb-dbcf0d6bc5ce"
+    }
   }
 }

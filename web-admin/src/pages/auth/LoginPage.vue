@@ -24,33 +24,24 @@ async function handleLogin() {
 
 <template>
   <div class="flex min-h-screen">
-    <!-- Left: Branding -->
     <div class="hidden w-1/2 flex-col justify-center bg-white px-16 lg:flex">
-      <!-- SConnect logo (Meta-style) -->
-      <svg class="mb-6 h-12 w-12" viewBox="0 0 48 48" fill="none">
-        <circle cx="24" cy="24" r="24" fill="#1877F2"/>
-        <text x="24" y="32" text-anchor="middle" fill="white" font-size="24" font-weight="bold" font-family="Arial">S</text>
-      </svg>
+      <img src="/logo-accueil.svg" alt="Logo Officiel" class="mb-6 h-12 w-auto object-contain self-start" />
+      
       <h1 class="text-5xl font-bold leading-tight text-text-primary">
-        Gérez vos
-        <br />activités
+        Gerez vos
+        <br />activites
         <br />commerciales
         <br /><span class="text-primary">efficacement.</span>
       </h1>
       <p class="mt-6 max-w-md text-lg text-text-secondary">
-        SalesConnect vous aide à suivre vos équipes, vos ventes et vos performances terrain en temps réel.
+        SalesConnect vous aide a suivre vos equipes, vos ventes et vos performances terrain en temps reel.
       </p>
     </div>
 
-    <!-- Right: Login Form -->
     <div class="flex w-full items-center justify-center bg-surface px-6 lg:w-1/2">
       <div class="w-full max-w-md">
-        <!-- Mobile logo -->
         <div class="mb-8 text-center lg:hidden">
-          <svg class="mx-auto mb-4 h-10 w-10" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="24" fill="#1877F2"/>
-            <text x="24" y="32" text-anchor="middle" fill="white" font-size="24" font-weight="bold" font-family="Arial">S</text>
-          </svg>
+          <img src="/logo-officiel.svg" alt="Logo Officiel" class="mx-auto mb-4 h-12 w-auto object-contain" />
         </div>
 
         <div class="rounded-lg bg-white p-8 shadow-md">
@@ -58,22 +49,19 @@ async function handleLogin() {
             Se connecter à SalesConnect
           </h2>
 
-          <!-- Error -->
           <div v-if="error" class="mb-4 rounded-lg bg-danger/10 px-4 py-3 text-sm text-danger">
             {{ error }}
           </div>
 
           <form class="space-y-4" @submit.prevent="handleLogin">
-            <!-- Email -->
             <input
               v-model="email"
               type="email"
               required
-              placeholder="E-mail ou numéro de mobile"
+              placeholder="E-mail ou numero de mobile"
               class="w-full rounded-md border border-border bg-surface px-4 py-3 text-base text-text-primary outline-none transition-colors placeholder:text-text-secondary focus:border-primary focus:ring-1 focus:ring-primary"
             />
 
-            <!-- Password -->
             <div class="relative">
               <input
                 v-model="password"
@@ -94,7 +82,6 @@ async function handleLogin() {
               </button>
             </div>
 
-            <!-- Submit -->
             <button
               type="submit"
               :disabled="authStore.loading"
@@ -111,28 +98,24 @@ async function handleLogin() {
             </button>
           </form>
 
-          <!-- Forgot password -->
           <div class="mt-4 text-center">
-            <a href="#" class="text-sm text-primary hover:underline">Mot de passe oublié ?</a>
+            <a href="#" class="text-sm text-primary hover:underline">Mot de passe oublie ?</a>
           </div>
 
-          <!-- Divider -->
           <div class="my-5 border-t border-border" />
 
-          <!-- Create account -->
           <div class="text-center">
             <button
               type="button"
               class="rounded-md border border-border bg-white px-6 py-2.5 text-base font-semibold text-primary transition-colors hover:bg-surface"
             >
-              Créer un nouveau compte
+              Creer un nouveau compte
             </button>
           </div>
         </div>
 
-        <!-- Meta branding -->
         <div class="mt-6 text-center">
-          <span class="text-xs text-text-secondary">Propulsé par</span>
+          <span class="text-xs text-text-secondary">Propulse par</span>
           <p class="mt-1 text-sm font-semibold text-text-secondary">SalesConnect SFA</p>
         </div>
       </div>

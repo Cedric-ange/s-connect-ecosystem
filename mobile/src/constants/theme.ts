@@ -13,4 +13,4 @@ export const Colors = {
 }
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://backendsfa-gdqw.onrender.com/api'
-export const TENANT_ID = process.env.EXPO_PUBLIC_TENANT_ID || ''
+export const TENANT_ID = process.env.EXPO_PUBLIC_TENANT_ID || '0c51a134-6d94-4d59-b8ff-ba113177b54b'

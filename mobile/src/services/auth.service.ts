@@ -11,7 +11,9 @@ interface AuthResponse {
 
 export const authService = {
   async login(email: string, password: string): Promise<AuthResponse> {
-    const data = await api.post<AuthResponse>('/auth/login-auto', { email, password })
+    // 🎯 Remplacement de '/auth/login-auto' par '/auth/login' pour s'aligner sur la Web App
+    const data = await api.post<AuthResponse>('/auth/login', { email, password })
+    
     await AsyncStorage.setItem('token', data.access_token)
     await AsyncStorage.setItem('refreshToken', data.refresh_token)
     await AsyncStorage.setItem('user', JSON.stringify(data.user))

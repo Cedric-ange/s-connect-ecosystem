@@ -37,19 +37,18 @@ function isActive(path: string) {
     class="flex flex-col border-r border-border bg-white transition-all duration-300"
     :class="collapsed ? 'w-[60px]' : 'w-[240px]'"
   >
-    <!-- Logo -->
     <div class="flex h-14 items-center gap-2 px-3">
-      <svg class="h-8 w-8 shrink-0" viewBox="0 0 48 48" fill="none">
-        <circle cx="24" cy="24" r="24" fill="#1877F2"/>
-        <text x="24" y="32" text-anchor="middle" fill="white" font-size="24" font-weight="bold" font-family="Arial">S</text>
-      </svg>
+      <img 
+        src="/logo-officiel.svg" 
+        alt="SalesConnect" 
+        class="h-8 w-8 shrink-0 object-contain" 
+      />
       <div v-if="!collapsed" class="leading-tight">
         <span class="text-sm font-bold text-text-primary">SalesConnect</span>
         <span class="block text-[10px] text-text-secondary">Business Suite</span>
       </div>
     </div>
 
-    <!-- Account selector -->
     <div v-if="!collapsed" class="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-2 hover:bg-sidebar-hover">
       <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
         {{ authStore.user?.firstName?.[0] || 'S' }}
@@ -62,7 +61,6 @@ function isActive(path: string) {
       </svg>
     </div>
 
-    <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto px-2 py-1">
       <router-link
         v-for="item in navItems"
@@ -74,7 +72,6 @@ function isActive(path: string) {
           : 'text-text-primary hover:bg-sidebar-hover'"
         :title="collapsed ? item.name : undefined"
       >
-        <!-- Icons -->
         <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <path v-if="item.icon === 'home'" stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
           <path v-else-if="item.icon === 'bell'" stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
@@ -91,7 +88,6 @@ function isActive(path: string) {
       </router-link>
     </nav>
 
-    <!-- Bottom items -->
     <div class="border-t border-border px-2 py-2">
       <router-link
         v-for="item in bottomItems"

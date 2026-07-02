@@ -14,6 +14,7 @@ export interface TopItem {
 }
 
 export const analyticsService = {
+  // 🎯 Appelle l'endpoint GET /analytics/dashboard du Backend
   async getDashboardMetrics(period?: string): Promise<DashboardMetrics> {
     const { data } = await api.get<DashboardMetrics>('/analytics/dashboard', { params: { period } })
     return data
@@ -35,7 +36,7 @@ export const analyticsService = {
   },
 
   async getPerformanceByTerritory(params?: { period?: string }): Promise<TopItem[]> {
-    const { data } = await api.get<TopItem[]>('/analytics/territory-performance', { params })
+    const { data } = await api.get<TopItem[]>('/analytics/territory', { params })
     return data
-  },
+  }
 }
