@@ -129,7 +129,7 @@ async function deleteOutlet(id: string) {
 
 function getStatusBadge(status: string) {
   switch (status) {
-    case 'VALIDATED':
+    case 'APPROVED':
       return { label: 'Validé', class: 'bg-green-100 text-green-800' }
     case 'REJECTED':
       return { label: 'Rejeté', class: 'bg-red-100 text-red-800' }
