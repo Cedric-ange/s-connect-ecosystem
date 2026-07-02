@@ -23,7 +23,7 @@ function triggerToast(message: string, type: 'success' | 'error' = 'success') {
   toastType.value = type
   showToast.value = true
   setTimeout(() => {
-    showToast.value = false
+    showToast.value = fal
   }, 4000)
 }
 
