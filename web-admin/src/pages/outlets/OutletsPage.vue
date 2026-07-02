@@ -54,14 +54,19 @@ async function fetchOutlets() {
   }
 }
 
-// Actions de Validation / Rejet
+// Actions de Validation / Rejet (Modifiées pour APPROVED)
 async function validateOutlet(id: string) {
   try {
-    await outletsService.validate(id)
-    triggerToast("Le point de vente a bien été validé !", "success")
+    // Si ton service utilise une méthode générique patch ou update, on s'assure d'envoyer APPROVED
+    if ((outletsService as any).update) {
+      await (outletsService as any).update(id, { status: 'APPROVED' })
+    } else {
+      await outletsService.validate(id)
+    }
+    triggerToast("Le point de vente a bien été approuvé !", "success")
     await fetchOutlets()
   } catch (error) {
-    triggerToast("Impossible de valider ce point de vente.", "error")
+    triggerToast("Impossible d'approuver ce point de vente.", "error")
   }
 }
 
@@ -130,7 +135,8 @@ async function deleteOutlet(id: string) {
 function getStatusBadge(status: string) {
   switch (status) {
     case 'APPROVED':
-      return { label: 'Validé', class: 'bg-green-100 text-green-800' }
+    case 'VALIDATED':
+      return { label: 'Approuvé', class: 'bg-green-100 text-green-800' }
     case 'REJECTED':
       return { label: 'Rejeté', class: 'bg-red-100 text-red-800' }
     case 'PENDING':
@@ -152,7 +158,7 @@ const mapIframeUrl = computed(() => {
     <div class="mb-6 flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Points de Vente</h1>
-        <p class="text-sm text-gray-500">Gérez, validez et géolocalisez les boutiques partenaires.</p>
+        <p class="text-sm text-gray-500">Gérez, approuvez et géolocalisez les boutiques partenaires.</p>
       </div>
       
       <select 
@@ -162,7 +168,7 @@ const mapIframeUrl = computed(() => {
       >
         <option value="">Tous les statuts</option>
         <option value="PENDING">En attente</option>
-        <option value="VALIDATED">Validés</option>
+        <option value="APPROVED">Approuvés</option>
         <option value="REJECTED">Rejetés</option>
       </select>
     </div>
@@ -192,7 +198,7 @@ const mapIframeUrl = computed(() => {
               <div class="flex items-center justify-end gap-3">
                 <div v-if="outlet.status === 'PENDING'" class="flex gap-1.5 mr-2 border-r pr-3 border-gray-200">
                   <button @click="validateOutlet(outlet.id)" class="rounded bg-green-50 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-100">
-                    Valider
+                    Approuver
                   </button>
                   <button @click="rejectOutlet(outlet.id)" class="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100">
                     Rejeter
