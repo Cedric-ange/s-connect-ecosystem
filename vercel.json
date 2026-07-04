@@ -1,15 +1,7 @@
+cat << 'EOF' > vercel.json
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "src/vercel-main.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/src/vercel-main.ts"
-    }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
+EOF
