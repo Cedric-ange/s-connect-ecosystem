@@ -1,135 +1,88 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service'; // Ajuste le chemin selon ton projet
-import { CreateTerritoryDto } from './dto/create-territory.dto';
-import { AssignAdminDto } from './dto/assign-admin.dto';
-import { CreateSectorDto } from './dto/create-sector.dto';
-import { RoleEnum } from '../users/enums/role.enum'; // Ajuste le chemin selon tes enums
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import api from '@/services/api'
 
-@Injectable()
-export class TerritoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+interface Territory {
+  id: string
+  name: string
+  type: 'ZONE' | 'SECTEUR'
+  potential?: number
+  admin_name?: string
+  parent_name?: string
+}
 
-  /**
-   * FLUX 1 : Création d'une ZONE (Réservé au Superviseur SUP)
-   */
-  async createZone(dto: CreateTerritoryDto) {
-    return this.prisma.territory.create({
-      data: {
-        name: dto.name,
-        type: 'ZONE',
-        potential: dto.potential || 0,
-        // Si un adminId est fourni dès le départ, on le lie
-        ...(dto.adminId && { adminId: dto.adminId }),
-      },
-    });
-  }
+const territories = ref<Territory[]>([])
+const loading = ref(true)
 
-  /**
-   * FLUX 1.2 : Assignation d'un ADMIN à une ZONE (Opération Atomique)
-   * Règle critique : Un ADMIN ne peut gérer qu'UN SEUL territoire à la fois.
-   */
-  async assignAdminToZone(zoneId: string, dto: AssignAdminDto) {
-    // 1. Vérifier que la zone existe bien
-    const zone = await this.prisma.territory.findUnique({ where: { id: zoneId } });
-    if (!zone || zone.type !== 'ZONE') {
-      throw new NotFoundException("La zone spécifiée n'existe pas.");
+async function fetchTerritories() {
+  loading.value = true
+  try {
+    // Appel de ton endpoint NestJS mis à jour : GET /territories
+    const response = await api.get('/territories')
+    if (response && response.data && response.data.success) {
+      territories.value = response.data.data
     }
-
-    // 2. Vérifier que l'utilisateur est bien un ADMIN
-    const user = await this.prisma.user.findUnique({ where: { id: dto.adminId } });
-    if (!user || user.role !== RoleEnum.ADMIN) {
-      throw new BadRequestException("L'utilisateur sélectionné doit posséder le rôle ADMIN.");
-    }
-
-    // 3. Règle Métier : Vérifier si cet ADMIN gère déjà une autre zone
-    const existingZone = await this.prisma.territory.findFirst({
-      where: { adminId: dto.adminId, NOT: { id: zoneId } },
-    });
-    if (existingZone) {
-      throw new BadRequestException(`Cet administrateur gère déjà une autre zone (${existingZone.name}).`);
-    }
-
-    // 4. TRANSACTION ATOMIQUE : Assigner l'ADMIN et mettre à jour la hiérarchie managériale des REPs
-    return this.prisma.$transaction(async (tx) => {
-      // Étape A : Mettre à jour la Zone avec le nouvel adminId
-      const updatedZone = await tx.territory.update({
-        where: { id: zoneId },
-        data: { adminId: dto.adminId },
-      });
-
-      // Étape B : Mettre à jour le managerId de tous les REPs travaillant dans les secteurs de cette zone
-      const sectors = await tx.territory.findMany({ where: { parentId: zoneId } });
-      const sectorIds = sectors.map((s) => s.id);
-
-      if (sectorIds.length > 0) {
-        await tx.user.updateMany({
-          where: {
-            role: RoleEnum.REP,
-            assignedSectorId: { in: sectorIds },
-          },
-          data: {
-            managerId: dto.adminId, // Le nouvel ADMIN devient le manager direct des REPs
-          },
-        });
-      }
-
-      // Étape C : Log d'audit
-      await tx.auditLog.create({
-        data: {
-          action: 'ASSIGN_ZONE_ADMIN',
-          details: `Admin ${dto.adminId} assigné à la zone ${zone.name}`,
-        },
-      });
-
-      return updatedZone;
-    });
-  }
-
-  /**
-   * FLUX 2 : Création de SECTEUR par un ADMIN
-   * Règle critique : Un ADMIN ne peut créer des secteurs que dans SA zone.
-   */
-  async createSector(adminId: string, dto: CreateSectorDto) {
-    // 1. Trouver la zone gérée par cet ADMIN
-    const managedZone = await this.prisma.territory.findFirst({
-      where: { adminId: adminId, type: 'ZONE' },
-    });
-
-    if (!managedZone) {
-      throw new ForbiddenException("Vous ne gérez aucun territoire. Impossible de créer un secteur.");
-    }
-
-    // 2. Sécurité : S'assurer que le parentId spécifié est bien la zone de l'ADMIN
-    if (dto.parentId !== managedZone.id) {
-      throw new ForbiddenException("Règle Métier : Vous ne pouvez créer un secteur que dans la ZONE qui vous est assignée.");
-    }
-
-    // 3. Création du Secteur opérationnel
-    return this.prisma.territory.create({
-      data: {
-        name: dto.name,
-        type: 'SECTEUR',
-        parentId: managedZone.id,
-      },
-    });
-  }
-
-  /**
-   * Soft-Delete / Archivage en Cascade d'une ZONE (Évolutions futures Sprint actuel)
-   */
-  async archiveZone(zoneId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Archiver ou détacher tous les secteurs enfants
-      await tx.territory.updateMany({
-        where: { parentId: zoneId },
-        data: { status: 'ARCHIVED' }, // En considérant qu'une colonne status existe
-      });
-
-      // 2. Archiver la zone parente
-      return tx.territory.update({
-        where: { id: zoneId },
-        data: { status: 'ARCHIVED', adminId: null },
-      });
-    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des territoires :", error)
+  } finally {
+    loading.value = false
   }
 }
+
+onMounted(() => {
+  fetchTerritories()
+})
+</script>
+
+<template>
+  <div class="p-6 max-w-7xl mx-auto space-y-6">
+    <div class="flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Structures Territoriales</h1>
+        <p class="text-sm text-gray-500">Gérez la hiérarchie de vos Zones (SUP) et vos Secteurs opérationnels (ADMIN).</p>
+      </div>
+      <button @click="fetchTerritories" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-sm font-medium rounded-lg transition">
+        Rafraîchir
+      </button>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      <div v-if="loading" class="p-12 text-center text-gray-500">
+        Chargement de la cartographie...
+      </div>
+      <div v-else-if="territories.length === 0" class="p-12 text-center text-gray-500">
+        Aucun territoire ou secteur configuré pour le moment.
+      </div>
+      
+      <table v-else class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            <th class="p-4">Nom de la structure</th>
+            <th class="p-4">Niveau / Type</th>
+            <th class="p-4">Responsable / Parent</th>
+            <th class="p-4">Potentiel commercial</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 text-sm text-gray-700">
+          <tr v-for="item in territories" :key="item.id" class="hover:bg-gray-50 transition">
+            <td class="p-4 font-bold text-gray-900">{{ item.name }}</td>
+            <td class="p-4">
+              <span :class="[
+                item.type === 'ZONE' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800',
+                'px-2.5 py-1 rounded-full text-xs font-medium uppercase tracking-wider'
+              ]">
+                {{ item.type }}
+              </span>
+            </td>
+            <td class="p-4 text-gray-600">
+              {{ item.type === 'ZONE' ? item.admin_name || 'Aucun ADMIN assigné' : item.parent_name || 'Zone parente inconnue' }}
+            </td>
+            <td class="p-4 font-semibold">
+              {{ item.potential ? new Intl.NumberFormat('fr-FR').format(item.potential) + ' FCFA' : '-' }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</template>
