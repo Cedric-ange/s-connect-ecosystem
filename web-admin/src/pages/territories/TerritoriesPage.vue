@@ -1,136 +1,135 @@
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { territoriesService } from '@/services/territories.service'
-import { useAuthStore } from '@/stores/auth'
-import type { Territory } from '@/types'
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service'; // Ajuste le chemin selon ton projet
+import { CreateTerritoryDto } from './dto/create-territory.dto';
+import { AssignAdminDto } from './dto/assign-admin.dto';
+import { CreateSectorDto } from './dto/create-sector.dto';
+import { RoleEnum } from '../users/enums/role.enum'; // Ajuste le chemin selon tes enums
 
-const authStore = useAuthStore()
-const territories = ref<Territory[]>([])
-const loading = ref(true)
-const showCreateModal = ref(false)
-const newTerritory = ref({ name: '', type: 'ZONE' as string, parentId: '' })
-const creating = ref(false)
+@Injectable()
+export class TerritoriesService {
+  constructor(private readonly prisma: PrismaService) {}
 
-onMounted(async () => {
-  await fetchTerritories()
-})
+  /**
+   * FLUX 1 : Création d'une ZONE (Réservé au Superviseur SUP)
+   */
+  async createZone(dto: CreateTerritoryDto) {
+    return this.prisma.territory.create({
+      data: {
+        name: dto.name,
+        type: 'ZONE',
+        potential: dto.potential || 0,
+        // Si un adminId est fourni dès le départ, on le lie
+        ...(dto.adminId && { adminId: dto.adminId }),
+      },
+    });
+  }
 
-async function fetchTerritories() {
-  loading.value = true
-  try {
-    territories.value = await territoriesService.getAll()
-  } catch {
-    territories.value = []
-  } finally {
-    loading.value = false
+  /**
+   * FLUX 1.2 : Assignation d'un ADMIN à une ZONE (Opération Atomique)
+   * Règle critique : Un ADMIN ne peut gérer qu'UN SEUL territoire à la fois.
+   */
+  async assignAdminToZone(zoneId: string, dto: AssignAdminDto) {
+    // 1. Vérifier que la zone existe bien
+    const zone = await this.prisma.territory.findUnique({ where: { id: zoneId } });
+    if (!zone || zone.type !== 'ZONE') {
+      throw new NotFoundException("La zone spécifiée n'existe pas.");
+    }
+
+    // 2. Vérifier que l'utilisateur est bien un ADMIN
+    const user = await this.prisma.user.findUnique({ where: { id: dto.adminId } });
+    if (!user || user.role !== RoleEnum.ADMIN) {
+      throw new BadRequestException("L'utilisateur sélectionné doit posséder le rôle ADMIN.");
+    }
+
+    // 3. Règle Métier : Vérifier si cet ADMIN gère déjà une autre zone
+    const existingZone = await this.prisma.territory.findFirst({
+      where: { adminId: dto.adminId, NOT: { id: zoneId } },
+    });
+    if (existingZone) {
+      throw new BadRequestException(`Cet administrateur gère déjà une autre zone (${existingZone.name}).`);
+    }
+
+    // 4. TRANSACTION ATOMIQUE : Assigner l'ADMIN et mettre à jour la hiérarchie managériale des REPs
+    return this.prisma.$transaction(async (tx) => {
+      // Étape A : Mettre à jour la Zone avec le nouvel adminId
+      const updatedZone = await tx.territory.update({
+        where: { id: zoneId },
+        data: { adminId: dto.adminId },
+      });
+
+      // Étape B : Mettre à jour le managerId de tous les REPs travaillant dans les secteurs de cette zone
+      const sectors = await tx.territory.findMany({ where: { parentId: zoneId } });
+      const sectorIds = sectors.map((s) => s.id);
+
+      if (sectorIds.length > 0) {
+        await tx.user.updateMany({
+          where: {
+            role: RoleEnum.REP,
+            assignedSectorId: { in: sectorIds },
+          },
+          data: {
+            managerId: dto.adminId, // Le nouvel ADMIN devient le manager direct des REPs
+          },
+        });
+      }
+
+      // Étape C : Log d'audit
+      await tx.auditLog.create({
+        data: {
+          action: 'ASSIGN_ZONE_ADMIN',
+          details: `Admin ${dto.adminId} assigné à la zone ${zone.name}`,
+        },
+      });
+
+      return updatedZone;
+    });
+  }
+
+  /**
+   * FLUX 2 : Création de SECTEUR par un ADMIN
+   * Règle critique : Un ADMIN ne peut créer des secteurs que dans SA zone.
+   */
+  async createSector(adminId: string, dto: CreateSectorDto) {
+    // 1. Trouver la zone gérée par cet ADMIN
+    const managedZone = await this.prisma.territory.findFirst({
+      where: { adminId: adminId, type: 'ZONE' },
+    });
+
+    if (!managedZone) {
+      throw new ForbiddenException("Vous ne gérez aucun territoire. Impossible de créer un secteur.");
+    }
+
+    // 2. Sécurité : S'assurer que le parentId spécifié est bien la zone de l'ADMIN
+    if (dto.parentId !== managedZone.id) {
+      throw new ForbiddenException("Règle Métier : Vous ne pouvez créer un secteur que dans la ZONE qui vous est assignée.");
+    }
+
+    // 3. Création du Secteur opérationnel
+    return this.prisma.territory.create({
+      data: {
+        name: dto.name,
+        type: 'SECTEUR',
+        parentId: managedZone.id,
+      },
+    });
+  }
+
+  /**
+   * Soft-Delete / Archivage en Cascade d'une ZONE (Évolutions futures Sprint actuel)
+   */
+  async archiveZone(zoneId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Archiver ou détacher tous les secteurs enfants
+      await tx.territory.updateMany({
+        where: { parentId: zoneId },
+        data: { status: 'ARCHIVED' }, // En considérant qu'une colonne status existe
+      });
+
+      // 2. Archiver la zone parente
+      return tx.territory.update({
+        where: { id: zoneId },
+        data: { status: 'ARCHIVED', adminId: null },
+      });
+    });
   }
 }
-
-async function handleCreate() {
-  creating.value = true
-  try {
-    await territoriesService.create(newTerritory.value)
-    showCreateModal.value = false
-    newTerritory.value = { name: '', type: 'ZONE', parentId: '' }
-    await fetchTerritories()
-  } catch {
-    // handle error
-  } finally {
-    creating.value = false
-  }
-}
-
-function getTypeBadgeClass(type: string) {
-  switch (type) {
-    case 'PAYS': return 'bg-purple-100 text-purple-700'
-    case 'REGION': return 'bg-blue-100 text-blue-700'
-    case 'ZONE': return 'bg-primary/10 text-primary'
-    case 'SECTEUR': return 'bg-secondary/10 text-secondary'
-    case 'SOUS_SECTEUR': return 'bg-warning/10 text-warning'
-    default: return 'bg-gray-100 text-gray-700'
-  }
-}
-</script>
-
-<template>
-  <div>
-    <div class="mb-6 flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-gray-900">Territoires</h1>
-        <p class="text-sm text-gray-500">Gestion de la hiérarchie territoriale</p>
-      </div>
-      <button
-        v-if="authStore.isSup"
-        class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-dark"
-        @click="showCreateModal = true"
-      >
-        + Nouveau Territoire
-      </button>
-    </div>
-
-    <!-- Territories list -->
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div v-if="loading" class="p-8 text-center text-gray-400">Chargement...</div>
-      <table v-else class="w-full">
-        <thead class="border-b border-gray-200 bg-gray-50">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Nom</th>
-            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Type</th>
-            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Responsable</th>
-            <th class="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Secteurs</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-for="t in territories" :key="t.id" class="hover:bg-gray-50">
-            <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ t.name }}</td>
-            <td class="px-4 py-3">
-              <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="getTypeBadgeClass(t.type)">
-                {{ t.type }}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-sm text-gray-600">
-              {{ t.admin ? `${t.admin.firstName} ${t.admin.lastName}` : '—' }}
-            </td>
-            <td class="px-4 py-3 text-sm text-gray-600">
-              {{ t.children?.length || 0 }}
-            </td>
-          </tr>
-          <tr v-if="territories.length === 0">
-            <td colspan="4" class="px-4 py-8 text-center text-sm text-gray-400">Aucun territoire</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Create Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-        <h2 class="mb-4 text-lg font-semibold text-gray-900">Créer un territoire</h2>
-        <form class="space-y-4" @submit.prevent="handleCreate">
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Nom</label>
-            <input v-model="newTerritory.name" required class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none" />
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-medium text-gray-700">Type</label>
-            <select v-model="newTerritory.type" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none">
-              <option value="PAYS">PAYS</option>
-              <option value="REGION">REGION</option>
-              <option value="ZONE">ZONE</option>
-              <option value="SECTEUR">SECTEUR</option>
-              <option value="SOUS_SECTEUR">SOUS-SECTEUR</option>
-            </select>
-          </div>
-          <div class="flex gap-3 pt-2">
-            <button type="submit" :disabled="creating" class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary-dark disabled:opacity-50">
-              {{ creating ? 'Création...' : 'Créer' }}
-            </button>
-            <button type="button" class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" @click="showCreateModal = false">
-              Annuler
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</template>
