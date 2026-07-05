@@ -81,6 +81,18 @@ const router = createRouter({
           name: 'settings',
           component: () => import('@/pages/settings/SettingsPage.vue'),
         },
+        // 🛍️ Nouvelle route : Historique des commandes
+        {
+          path: 'orders',
+          name: 'orders',
+          component: () => import('@/pages/orders/OrdersPage.vue'),
+        },
+        // 📍 Nouvelle route : Rapports de visites
+        {
+          path: 'visits',
+          name: 'visits',
+          component: () => import('@/pages/Visite/VisitsPage.vue'),
+        },
       ],
     },
     {
