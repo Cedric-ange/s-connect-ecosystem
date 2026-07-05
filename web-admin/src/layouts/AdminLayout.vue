@@ -6,7 +6,12 @@ import SidebarNav from '@/components/layout/SidebarNav.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
+
+// sidebarCollapsed gère l'état global contrôlé par le clic sur le bouton
 const sidebarCollapsed = ref(false)
+
+// isHovered gère l'état temporaire au survol de la souris
+const isHovered = ref(false)
 
 function handleLogout() {
   authStore.logout()
@@ -16,7 +21,17 @@ function handleLogout() {
 
 <template>
   <div class="flex h-screen overflow-hidden bg-surface">
-    <SidebarNav :collapsed="sidebarCollapsed" @toggle="sidebarCollapsed = !sidebarCollapsed" />
+    
+    <div 
+      @mouseenter="isHovered = true"
+      @mouseleave="isHovered = false"
+      class="h-full z-50 transition-all duration-300 ease-in-out shrink-0"
+    >
+      <SidebarNav 
+        :collapsed="sidebarCollapsed && !isHovered" 
+        @toggle="sidebarCollapsed = !sidebarCollapsed" 
+      />
+    </div>
 
     <div class="flex flex-1 flex-col overflow-hidden">
       <header class="flex h-14 items-center justify-between border-b border-border bg-white px-4">
